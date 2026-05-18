@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DistQ Dashboard (Placeholder)</title>
+    <meta
+      name="description"
+      content="DistQ monitoring dashboard placeholder. Live updates will be wired via WebSocket."
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>DistQ Dashboard</h1>
+      <p>Placeholder UI. Live metrics and task events will appear here.</p>
+    </header>
+
+    <main id="app">
+      <section>
+        <h2>Queue Depth</h2>
+        <p>TODO: render per-priority depth from <code>/metrics</code>.</p>
+      </section>
+
+      <section>
+        <h2>Workers</h2>
+        <p>TODO: render active workers from <code>/workers</code>.</p>
+      </section>
+
+      <section>
+        <h2>Task Events</h2>
+        <p>TODO: stream events from <code>/ws</code>.</p>
+      </section>
+
+      <section>
+        <h2>Dead-Letter Queue</h2>
+        <p>TODO: render DLQ entries from <code>/dlq</code>.</p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

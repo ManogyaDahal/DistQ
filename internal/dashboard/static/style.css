@@ -1,0 +1,20 @@
+/* DistQ Dashboard - Placeholder Stylesheet */
+/* This file establishes ownership for the dashboard UI styles. */
+
+:root {
+  --bg: #0f172a;
+  --fg: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
