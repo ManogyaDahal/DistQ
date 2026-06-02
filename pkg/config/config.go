@@ -16,16 +16,16 @@ type Config struct {
 	LogLevel          string        // LOG_LEVEL, default "info"
 }
 
-// returns the configuration of the task queue
-func (c *Config)Load() (*Config){ 
+// returns the default configuration of the task queue
+func Load() (*Config, error){ 
 	return &Config{
 		RedisAddr: "localhost:6379",
 		RedisPassword: "",
 		WorkerConcurrency: 4,
 		HeartbeatInterval: 5*time.Second, 
 		HeartbeatTimeout: 30*time.Second, 
-		APIPort: ":8080",
+		APIPort: "8080",
 		MaxRetries:3,
-		LogLevel:"",
-	} 
+		LogLevel:"info",
+	}, nil
 }
