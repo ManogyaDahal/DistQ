@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings" 
+	"time"
 
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
@@ -139,4 +140,57 @@ func decodeTask(values map[string]any) (*task.Task, error){
 	}
 
 	return &t, nil
+}
+
+// Ack acknowledges successful processing of a message.
+func Ack(ctx context.Context, client *redisclient.Client, priority int, streamID string) error {
+	if client == nil || client.Redis == nil {
+		return errors.New("redis client is nil")
+	}
+	if streamID == "" {
+		return errors.New("stream ID is empty")
+	}
+
+	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
+
+	_, err := client.Redis.XAck(ctx, stream, consumerGroup, streamID).Result()
+	if err != nil {
+		return fmt.Errorf("xack on %s: %w", stream, err)
+	}
+
+	return nil
+}
+
+// Claim reassigns timed-out tasks to a consumer.
+func Claim(ctx context.Context, client *redisclient.Client, priority int, minIdle time.Duration, consumer string, streamIDs []string) ([]*task.Task, error) {
+	if client == nil || client.Redis == nil {
+		return nil, errors.New("redis client is nil")
+	}
+	if len(streamIDs) == 0 {
+		return nil, nil
+	}
+
+	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
+
+	messages, err := client.Redis.XClaim(ctx, &redis.XClaimArgs{
+		Stream:   stream,
+		Group:    consumerGroup,
+		Consumer: consumer,
+		MinIdle:  minIdle,
+		Messages: streamIDs,
+	}).Result()
+	if err != nil {
+		return nil, fmt.Errorf("xclaim on %s: %w", stream, err)
+	}
+
+	tasks := make([]*task.Task, 0, len(messages))
+	for _, msg := range messages {
+		t, err := decodeTask(msg.Values)
+		if err != nil {
+			return nil, fmt.Errorf("decode claimed task from %s: %w", stream, err)
+		}
+		tasks = append(tasks, t)
+	}
+
+	return tasks, nil
 }
