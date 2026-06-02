@@ -79,3 +79,64 @@ func Enqueue(ctx context.Context, client *redisclient.Client, t *task.Task) (str
 
 	return id, nil
 }
+
+// Dequeue claims a task for a woker using XREADGROUP COUNT 1
+func Dequeue(ctx context.Context, client *redisclient.Client, priority int, consumer string) (*task.Task, string, error){
+	if client == nil || client.Redis == nil { 
+		return nil, "", errors.New("Empty redis client")
+	}
+
+	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
+
+	streams, err := client.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:  consumerGroup,
+		Consumer: consumer,
+		Streams:  []string{stream, ">"},
+		Count: 1,
+		Block: 0, // blocks until message or context cancellation
+	}).Result()
+
+	if err != nil { 
+		if errors.Is(err, redis.Nil){ 
+			return nil, "", nil
+		}
+		return nil, "", fmt.Errorf("xreadgroup from %s: %w", stream, err)
+	}
+
+	if len(streams) == 0 || len(streams[0].Messages) == 0 { 
+		return nil, "", nil
+	}
+
+	msg := streams[0].Messages[0]
+	t, err := decodeTask(msg.Values)
+	if err != nil { 
+		return nil, "", fmt.Errorf("decode task %s: %w", stream, err)
+	}
+
+	return t, msg.ID, nil
+}
+
+// used for decoding the encoded task with various values
+func decodeTask(values map[string]any) (*task.Task, error){ 
+	raw, ok := values[taskField]	
+	if !ok{
+		return nil, fmt.Errorf("missing %q field", taskField)
+	}
+
+	var data []byte
+	switch v := raw.(type){ 
+	case string:
+		data = []byte(v)
+	case []byte:
+		data = v
+	default:
+		return nil, fmt.Errorf("unexpected %q type: %T", taskField, raw)
+	}
+
+	var t task.Task
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, fmt.Errorf("unmarshal task: %w", err)
+	}
+
+	return &t, nil
+}
