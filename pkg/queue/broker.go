@@ -1,4 +1,3 @@
-// pkg/queue/broker.go
 package queue
 
 import (

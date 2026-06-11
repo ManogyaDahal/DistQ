@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+//so  this file was actually built for the language of the entire DistQ system like before the taks
+//sent to the broker and worker what the task look like what the properties it should have it is defined
+
 type TaskStatus string
 
 const (
@@ -25,12 +28,14 @@ type Task struct {
 	CreatedAt  time.Time      `json:"created_at"`
 }
 
+// so this EnqueueResquest is basically what a user sends when creating a task.
 type EnqueueRequest struct {
 	Type     string         `json:"type"`
 	Payload  map[string]any `json:"payload"`
 	Priority int            `json:"priority"`
 }
 
+// and this was after client send the task and in the response what to give to it .
 type EnqueueResponse struct {
 	ID     string     `json:"id"`
 	Status TaskStatus `json:"status"`
