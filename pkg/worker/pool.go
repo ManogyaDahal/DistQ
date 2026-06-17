@@ -28,6 +28,8 @@ import (
 
 var ErrNoTask = errors.New("worker: no task available")
 
+const MaxWorkerConcurrency = 4
+
 type Queue interface {
 	Dequeue(ctx context.Context, workerID string) (*task.Task, error)
 	Ack(ctx context.Context, t *task.Task) error
@@ -77,6 +79,9 @@ func NewPool(workerID string, concurrency int, queue Queue, registry *Registry, 
 	}
 	if concurrency < 1 {
 		return nil, errors.New("worker: concurrency must be at least 1")
+	}
+	if concurrency > MaxWorkerConcurrency {
+		return nil, fmt.Errorf("worker: concurrency cannot exceed %d", MaxWorkerConcurrency)
 	}
 	if queue == nil {
 		return nil, errors.New("worker: queue is required")
