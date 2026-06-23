@@ -22,6 +22,7 @@ import (
 	"github.com/ManogyaDahal/DistQ/pkg/queue"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/scheduler"
+	"github.com/ManogyaDahal/DistQ/pkg/worker"
 )
 
 func main() {
@@ -59,8 +60,9 @@ func main() {
 	go scheduler.RunCronScheduler(ctx, redis, cfg, log)
 	log.Info("cron scheduler started")
 
-	// TODO: Start heartbeat monitor (pkg/worker) — implement during worker pool phase.
-	// go worker.RunHeartbeatMonitor(ctx, redis, cfg, log)
+	// Start heartbeat monitor: detects dead workers and reclaims their in-flight tasks.
+	monitor := worker.NewHeartbeatMonitor(redis, cfg, log)
+	go monitor.Run(ctx)
 
 	log.Info("broker started")
 	<-ctx.Done()
