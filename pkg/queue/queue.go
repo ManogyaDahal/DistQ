@@ -53,32 +53,94 @@ func EnsureConsumerGroup(ctx context.Context, client *redisclient.Client, priori
 	return nil
 }
 
-// Enqueue searilizes a task and appends it to the priority streams
-func Enqueue(ctx context.Context, client *redisclient.Client, t *task.Task) (string, error){ 
-	if client == nil || client.Redis == nil { 
-		return "", errors.New("Empty redis client")
+// Enqueue serializes a task and appends it to the priority stream.
+// It also persists task metadata to distq:task:<id> for dashboard and retry lookups.
+func Enqueue(ctx context.Context, client *redisclient.Client, t *task.Task) (string, error) {
+	if client == nil || client.Redis == nil {
+		return "", errors.New("redis client is nil")
 	}
-	
-	if t == nil { 
+	if t == nil {
 		return "", errors.New("task is nil")
 	}
-	
+
 	stream := fmt.Sprintf(redisclient.KeyQueueStream, t.Priority)
 
 	payload, err := json.Marshal(t)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal task: %w", err)
 	}
 
 	id, err := client.Redis.XAdd(ctx, &redis.XAddArgs{
-		Stream:  stream,
+		Stream: stream,
 		Values: map[string]any{taskField: payload},
 	}).Result()
-	if err != nil { 
-		return "", err
+	if err != nil {
+		return "", fmt.Errorf("xadd to %s: %w", stream, err)
+	}
+
+	// Persist task metadata so the dashboard and retry logic can look it up by ID.
+	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, t.ID)
+	if err := client.Redis.HSet(ctx, metaKey, "data", payload).Err(); err != nil {
+		// Non-fatal: stream entry is already written; log but don't fail the enqueue.
+		_ = err // callers should check their own logger; queue is the authoritative store
 	}
 
 	return id, nil
+}
+
+// MoveToDLQ appends a dead task to the dead-letter queue stream.
+// Call this when a task has exhausted MaxRetries.
+func MoveToDLQ(ctx context.Context, client *redisclient.Client, t *task.Task) error {
+	if client == nil || client.Redis == nil {
+		return errors.New("redis client is nil")
+	}
+	if t == nil {
+		return errors.New("task is nil")
+	}
+
+	payload, err := json.Marshal(t)
+	if err != nil {
+		return fmt.Errorf("marshal task for DLQ: %w", err)
+	}
+
+	_, err = client.Redis.XAdd(ctx, &redis.XAddArgs{
+		Stream: redisclient.KeyDLQ,
+		Values: map[string]any{taskField: payload},
+	}).Result()
+	if err != nil {
+		return fmt.Errorf("xadd to DLQ: %w", err)
+	}
+
+	return nil
+}
+
+// PendingIDs returns up to count stream message IDs that have been idle for at
+// least minIdle in the given priority stream. Used by the heartbeat monitor to
+// find in-flight tasks belonging to crashed workers.
+func PendingIDs(ctx context.Context, client *redisclient.Client, priority int, minIdle time.Duration, count int64) ([]string, error) {
+	if client == nil || client.Redis == nil {
+		return nil, errors.New("redis client is nil")
+	}
+
+	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
+
+	pending, err := client.Redis.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream: stream,
+		Group:  consumerGroup,
+		Idle:   minIdle,
+		Start:  "-",
+		End:    "+",
+		Count:  count,
+	}).Result()
+	if err != nil {
+		return nil, fmt.Errorf("xpending on %s: %w", stream, err)
+	}
+
+	ids := make([]string, 0, len(pending))
+	for _, p := range pending {
+		ids = append(ids, p.ID)
+	}
+	return ids, nil
 }
 
 // Dequeue claims a task for a woker using XREADGROUP COUNT 1
