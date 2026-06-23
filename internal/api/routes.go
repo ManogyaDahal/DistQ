@@ -1,15 +1,29 @@
 package api
 
-// This file defines HTTP route registration for the API server.
-// It is intentionally a placeholder scaffold without logic.
-// Implementations will wire handlers and middleware here.
-//
-// Ownership:
-// - internal/api owns HTTP handlers, routes, and the WebSocket hub.
-// - cmd/api should remain thin and call into this package.
-//
-// TODOs for future implementation:
-// - Register REST endpoints: POST /tasks, GET /tasks/:id, DELETE /tasks/:id,
-//   GET /dlq, GET /workers, GET /metrics.
-// - Register WebSocket endpoint: GET /ws.
-// - Attach logging and recovery middleware as needed.
+import (
+	"io/fs"
+	"net/http"
+
+	"github.com/ManogyaDahal/DistQ/internal/dashboard"
+)
+
+func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
+	// REST API endpoints
+	mux.HandleFunc("GET /api/metrics", handlers.GetMetrics)
+	mux.HandleFunc("GET /api/workers", handlers.GetWorkers)
+	mux.HandleFunc("GET /api/dlq", handlers.GetDLQ)
+	mux.HandleFunc("POST /api/dlq/retry", handlers.RetryDLQ)
+
+	// WebSocket telemetry stream
+	mux.HandleFunc("GET /api/ws", hub.ServeWebSocket)
+
+	// Serve embedded static dashboard files
+	subFS, err := fs.Sub(dashboard.StaticFS, "static")
+	if err != nil {
+		return err
+	}
+	fileServer := http.FileServer(http.FS(subFS))
+	mux.Handle("/", fileServer)
+
+	return nil
+}
