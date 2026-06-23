@@ -1,43 +1,127 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DistQ Dashboard (Placeholder)</title>
-    <meta
-      name="description"
-      content="DistQ monitoring dashboard placeholder. Live updates will be wired via WebSocket."
-    />
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>DistQ Dashboard</h1>
-      <p>Placeholder UI. Live metrics and task events will appear here.</p>
-    </header>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DistQ — Telemetry Dashboard</title>
+    <meta name="description" content="Minimalistic real-time telemetry dashboard for the DistQ distributed task queue.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="brand">
+                <span class="logo-dot"></span>
+                <h1>DistQ</h1>
+                <span class="badge">Telemetry</span>
+            </div>
+            <div class="system-status">
+                <span class="pulse-indicator" id="connection-status"></span>
+                <span id="connection-text">Connecting</span>
+            </div>
+        </header>
 
-    <main id="app">
-      <section>
-        <h2>Queue Depth</h2>
-        <p>TODO: render per-priority depth from <code>/metrics</code>.</p>
-      </section>
+        <!-- Stats Grid -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Ongoing Tasks</span>
+                <span class="stat-value" id="stat-ongoing">0</span>
+                <div class="stat-meta">Active executions</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Workers</span>
+                <div class="stat-value-group">
+                    <span class="stat-value" id="stat-free-workers">0</span>
+                    <span class="stat-separator">/</span>
+                    <span class="stat-value-total" id="stat-total-workers">0</span>
+                </div>
+                <div class="stat-meta"><span id="active-percentage">0%</span> idle capacity</div>
+            </div>
+            <div class="stat-card highlight-danger" id="card-dlq">
+                <span class="stat-label">Dead-Letter Queue</span>
+                <span class="stat-value" id="stat-dlq">0</span>
+                <div class="stat-meta">Failed executions</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Scheduled Tasks</span>
+                <span class="stat-value" id="stat-scheduled">0</span>
+                <div class="stat-meta">ZSET queue size</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Cron Jobs</span>
+                <span class="stat-value" id="stat-cron">0</span>
+                <div class="stat-meta">Recurring templates</div>
+            </div>
+        </section>
 
-      <section>
-        <h2>Workers</h2>
-        <p>TODO: render active workers from <code>/workers</code>.</p>
-      </section>
+        <!-- Main Layout -->
+        <main class="dashboard-main">
+            <!-- Left Panel: Workers & Queue Depths -->
+            <div class="panel-left">
+                <!-- Queue Depths -->
+                <section class="panel-card">
+                    <div class="card-header">
+                        <h2>Queue Depths</h2>
+                    </div>
+                    <div class="queue-list" id="queue-depths-container">
+                        <div class="empty-state">No queues configured</div>
+                    </div>
+                </section>
 
-      <section>
-        <h2>Task Events</h2>
-        <p>TODO: stream events from <code>/ws</code>.</p>
-      </section>
+                <!-- Active Workers -->
+                <section class="panel-card mt-24">
+                    <div class="card-header">
+                        <h2>Active Workers</h2>
+                        <span class="counter-badge" id="workers-count">0</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Worker ID</th>
+                                    <th>Status</th>
+                                    <th>Active Tasks</th>
+                                    <th>Last Heartbeat</th>
+                                </tr>
+                            </thead>
+                            <tbody id="workers-table-body">
+                                <tr>
+                                    <td colspan="4" class="empty-state">No workers detected</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
 
-      <section>
-        <h2>Dead-Letter Queue</h2>
-        <p>TODO: render DLQ entries from <code>/dlq</code>.</p>
-      </section>
-    </main>
+            <!-- Right Panel: Dead-Letter Queue -->
+            <div class="panel-right">
+                <section class="panel-card h-full">
+                    <div class="card-header dlq-header">
+                        <div>
+                            <h2>Dead-Letter Queue</h2>
+                            <p class="subtitle">Tasks that exceeded maximum retry attempts</p>
+                        </div>
+                        <button id="btn-reprocess" class="btn btn-primary" disabled>
+                            Reprocess DLQ
+                        </button>
+                    </div>
+                    <div class="dlq-task-list" id="dlq-task-list">
+                        <div class="empty-state">DLQ is clean</div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
 
     <script src="app.js"></script>
-  </body>
+</body>
 </html>
