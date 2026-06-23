@@ -21,6 +21,7 @@ import (
 	"github.com/ManogyaDahal/DistQ/pkg/config"
 	"github.com/ManogyaDahal/DistQ/pkg/queue"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
+	"github.com/ManogyaDahal/DistQ/pkg/scheduler"
 )
 
 func main() {
@@ -50,8 +51,16 @@ func main() {
 	}
 	log.Info("consumer groups initialized", "priorities", cfg.PriorityLevels)
 
-	// Start scheduler after created 
-	// Start heartbeat monitor
+	// Start ETA scheduler: promotes tasks from distq:scheduled into priority streams.
+	go scheduler.RunETAScheduler(ctx, redis, cfg, log)
+	log.Info("ETA scheduler started")
+
+	// Start Cron scheduler: re-enqueues recurring tasks on their cron expressions.
+	go scheduler.RunCronScheduler(ctx, redis, cfg, log)
+	log.Info("cron scheduler started")
+
+	// TODO: Start heartbeat monitor (pkg/worker) — implement during worker pool phase.
+	// go worker.RunHeartbeatMonitor(ctx, redis, cfg, log)
 
 	log.Info("broker started")
 	<-ctx.Done()
