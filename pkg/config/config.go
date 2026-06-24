@@ -15,3 +15,18 @@ type Config struct {
 	MaxRetries        int           // MAX_RETRIES, default 3
 	LogLevel          string        // LOG_LEVEL, default "info"
 }
+
+// returns the default configuration of the task queue
+func Load() (*Config, error){ 
+	return &Config{
+		RedisAddr:         "localhost:6379",
+		RedisPassword:     "",
+		WorkerConcurrency: 4,
+		HeartbeatInterval: 5 * time.Second,
+		HeartbeatTimeout:  30 * time.Second,
+		PriorityLevels:    []int{10, 5, 1},
+		APIPort:           "8080",
+		MaxRetries:        3,
+		LogLevel:          "info",
+	}, nil
+}
