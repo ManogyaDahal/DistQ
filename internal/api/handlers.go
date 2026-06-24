@@ -64,6 +64,8 @@ func (h *Handlers) GetDLQ(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	targetID := r.URL.Query().Get("id")
+
 	messages, err := h.client.Redis.XRange(ctx, redisclient.KeyDLQ, "-", "+").Result()
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to read DLQ stream", err)
@@ -77,11 +79,16 @@ func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := []ReprocessResult{}
+	processedCount := 0
 	for _, msg := range messages {
 		t, err := decodeTask(msg.Values)
 		if err != nil {
 			h.logger.Error("failed to decode DLQ task", "msg_id", msg.ID, "err", err)
 			results = append(results, ReprocessResult{ID: msg.ID, Success: false, Error: "decode failed"})
+			continue
+		}
+
+		if targetID != "" && t.ID != targetID {
 			continue
 		}
 
@@ -103,10 +110,11 @@ func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 		} else {
 			results = append(results, ReprocessResult{ID: t.ID, Success: true})
 		}
+		processedCount++
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
-		"processed_count": len(messages),
+		"processed_count": processedCount,
 		"results":         results,
 	})
 }

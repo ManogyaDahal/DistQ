@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DistQ — Telemetry Dashboard</title>
-    <meta name="description" content="Minimalistic real-time telemetry dashboard for the DistQ distributed task queue.">
-    <!-- Google Fonts -->
+    <title>DistQ — Telemetry & Control</title>
+    <meta name="description" content="Minimalist real-time telemetry dashboard for the DistQ distributed task queue.">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,7 +26,7 @@
             </div>
         </header>
 
-        <!-- Stats Grid -->
+        <!-- Stats Grid (1px Border Style) -->
         <section class="stats-grid">
             <div class="stat-card">
                 <span class="stat-label">Ongoing Tasks</span>
@@ -34,18 +34,13 @@
                 <div class="stat-meta">Active executions</div>
             </div>
             <div class="stat-card">
-                <span class="stat-label">Workers</span>
+                <span class="stat-label">Active Workers</span>
                 <div class="stat-value-group">
                     <span class="stat-value" id="stat-free-workers">0</span>
                     <span class="stat-separator">/</span>
                     <span class="stat-value-total" id="stat-total-workers">0</span>
                 </div>
                 <div class="stat-meta"><span id="active-percentage">0%</span> idle capacity</div>
-            </div>
-            <div class="stat-card highlight-danger" id="card-dlq">
-                <span class="stat-label">Dead-Letter Queue</span>
-                <span class="stat-value" id="stat-dlq">0</span>
-                <div class="stat-meta">Failed executions</div>
             </div>
             <div class="stat-card">
                 <span class="stat-label">Scheduled Tasks</span>
@@ -57,26 +52,37 @@
                 <span class="stat-value" id="stat-cron">0</span>
                 <div class="stat-meta">Recurring templates</div>
             </div>
+            <div class="stat-card highlight-danger" id="card-dlq">
+                <span class="stat-label">Dead-Letter Queue</span>
+                <span class="stat-value" id="stat-dlq">0</span>
+                <div class="stat-meta">Failed executions</div>
+            </div>
         </section>
 
         <!-- Main Layout -->
         <main class="dashboard-main">
-            <!-- Left Panel: Workers & Queue Depths -->
+            <!-- Left Column: Queues & Active Workers -->
             <div class="panel-left">
                 <!-- Queue Depths -->
                 <section class="panel-card">
                     <div class="card-header">
-                        <h2>Queue Depths</h2>
+                        <div>
+                            <h2>Queue Depths</h2>
+                            <p class="subtitle">Real-time priority streams backlog</p>
+                        </div>
                     </div>
                     <div class="queue-list" id="queue-depths-container">
                         <div class="empty-state">No queues configured</div>
                     </div>
                 </section>
 
-                <!-- Active Workers -->
-                <section class="panel-card mt-24">
+                <!-- Active Workers Registry -->
+                <section class="panel-card">
                     <div class="card-header">
-                        <h2>Active Workers</h2>
+                        <div>
+                            <h2>Active Workers</h2>
+                            <p class="subtitle">Registered processing nodes</p>
+                        </div>
                         <span class="counter-badge" id="workers-count">0</span>
                     </div>
                     <div class="table-container">
@@ -99,17 +105,20 @@
                 </section>
             </div>
 
-            <!-- Right Panel: Dead-Letter Queue -->
+            <!-- Right Column: Dead-Letter Queue Inspector -->
             <div class="panel-right">
                 <section class="panel-card h-full">
                     <div class="card-header dlq-header">
                         <div>
                             <h2>Dead-Letter Queue</h2>
-                            <p class="subtitle">Tasks that exceeded maximum retry attempts</p>
+                            <p class="subtitle">Failed tasks pending inspection or retry</p>
                         </div>
-                        <button id="btn-reprocess" class="btn btn-primary" disabled>
-                            Reprocess DLQ
+                        <button id="btn-reprocess" class="btn" disabled>
+                            Reprocess All
                         </button>
+                    </div>
+                    <div class="dlq-filter-container">
+                        <input type="text" id="dlq-search" class="search-input" placeholder="Filter tasks by ID or type..." autocomplete="off">
                     </div>
                     <div class="dlq-task-list" id="dlq-task-list">
                         <div class="empty-state">DLQ is clean</div>
@@ -119,7 +128,7 @@
         </main>
     </div>
 
-    <!-- Notification Toast -->
+    <!-- Telemetry Notification Toast -->
     <div id="toast" class="toast"></div>
 
     <script src="app.js"></script>

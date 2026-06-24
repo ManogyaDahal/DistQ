@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,12 +44,15 @@ type WorkerStatus struct {
 }
 
 type TaskBrief struct {
-	ID        string    `json:"id"`
-	Type      string    `json:"type"`
-	Priority  int       `json:"priority"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	ErrorMsg  string    `json:"error_msg"`
+	ID         string    `json:"id"`
+	Type       string    `json:"type"`
+	Priority   int       `json:"priority"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	ErrorMsg   string    `json:"error_msg"`
+	Payload    string    `json:"payload,omitempty"`
+	MaxRetries int       `json:"max_retries"`
+	RetryCount int       `json:"retry_count"`
 }
 
 func NewHub(client *redisclient.Client, cfg *config.Config, logger *slog.Logger) *Hub {
@@ -173,18 +177,33 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 		stream := fmt.Sprintf(redisclient.KeyQueueStream, p)
 		pStr := strconv.Itoa(p)
 
-		depth, err := h.client.Redis.XLen(ctx, stream).Result()
-		if err == nil {
-			queueDepths[pStr] = depth
-		} else {
-			queueDepths[pStr] = 0
+		// Use consumer-group lag instead of XLen. XLen counts every message
+		// ever written including already-ACK'd ones — Redis streams don't
+		// auto-delete. Pending = delivered to workers but not yet ACK'd;
+		// Lag = enqueued but not yet delivered to any consumer.
+		depth := int64(0)
+		groups, groupErr := h.client.Redis.XInfoGroups(ctx, stream).Result()
+		if groupErr == nil {
+			for _, g := range groups {
+				if g.Name == "workers" {
+					depth = g.Pending + g.Lag
+					break
+				}
+			}
 		}
+		queueDepths[pStr] = depth
 
 		pendingInfo, err := h.client.Redis.XPending(ctx, stream, "workers").Result()
 		if err == nil {
 			metrics["ongoing_tasks"] += pendingInfo.Count
-			for consumer, countStr := range pendingInfo.Consumers {
-				workerPendingCounts[consumer] += countStr
+			for consumer, count := range pendingInfo.Consumers {
+				// Consumers are named "workerID-slot-N"; strip the slot suffix
+				// to aggregate back to the base workerID used in the heartbeat hash.
+				baseID := consumer
+				if idx := strings.LastIndex(consumer, "-slot-"); idx != -1 {
+					baseID = consumer[:idx]
+				}
+				workerPendingCounts[baseID] += count
 			}
 		}
 	}
@@ -244,12 +263,15 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 				continue
 			}
 			dlqTasks = append(dlqTasks, TaskBrief{
-				ID:        t.ID,
-				Type:      t.Type,
-				Priority:  t.Priority,
-				Status:    string(t.Status),
-				CreatedAt: t.CreatedAt,
-				ErrorMsg:  t.ErrorMsg,
+				ID:         t.ID,
+				Type:       t.Type,
+				Priority:   t.Priority,
+				Status:     string(t.Status),
+				CreatedAt:  t.CreatedAt,
+				ErrorMsg:   t.ErrorMsg,
+				Payload:    string(t.Payload),
+				MaxRetries: t.MaxRetries,
+				RetryCount: t.RetryCount,
 			})
 		}
 	}
