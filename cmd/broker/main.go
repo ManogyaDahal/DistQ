@@ -61,8 +61,21 @@ func main() {
 	log.Info("cron scheduler started")
 
 	// Start heartbeat monitor: detects dead workers and reclaims their in-flight tasks.
-	monitor := worker.NewHeartbeatMonitor(redis, cfg, log)
-	go monitor.Run(ctx)
+	heartbeatStore := worker.NewRedisHeartbeatStore(redis)
+	monitor, err := worker.NewHeartbeatMonitor(heartbeatStore,
+		worker.WithHeartbeatMonitorTimeout(cfg.HeartbeatTimeout),
+		worker.WithHeartbeatMonitorInterval(cfg.HeartbeatInterval),
+		worker.WithHeartbeatMonitorLogger(log),
+	)
+	if err != nil {
+		log.Error("create heartbeat monitor", "err", err)
+		os.Exit(1)
+	}
+	go func() {
+		if err := monitor.Run(ctx); err != nil && err != context.Canceled {
+			log.Error("heartbeat monitor error", "err", err)
+		}
+	}()
 
 	log.Info("broker started")
 	<-ctx.Done()
