@@ -72,6 +72,8 @@ func Enqueue(ctx context.Context, client *redisclient.Client, t *task.Task) (str
 
 	id, err := client.Redis.XAdd(ctx, &redis.XAddArgs{
 		Stream: stream,
+		MaxLen: 10000, // approximate trim — prevents unbounded stream growth
+		Approx: true,
 		Values: map[string]any{taskField: payload},
 	}).Result()
 	if err != nil {
@@ -133,6 +135,20 @@ func PendingIDs(ctx context.Context, client *redisclient.Client, priority int, m
 		Count:  count,
 	}).Result()
 	if err != nil {
+		if strings.Contains(err.Error(), "NOGROUP") {
+			if gcErr := EnsureConsumerGroup(ctx, client, priority); gcErr == nil {
+				pending, err = client.Redis.XPendingExt(ctx, &redis.XPendingExtArgs{
+					Stream: stream,
+					Group:  consumerGroup,
+					Idle:   minIdle,
+					Start:  "-",
+					End:    "+",
+					Count:  count,
+				}).Result()
+			}
+		}
+	}
+	if err != nil {
 		return nil, fmt.Errorf("xpending on %s: %w", stream, err)
 	}
 
@@ -156,8 +172,22 @@ func Dequeue(ctx context.Context, client *redisclient.Client, priority int, cons
 		Consumer: consumer,
 		Streams:  []string{stream, ">"},
 		Count: 1,
-		Block: 0, // blocks until message or context cancellation
+		Block: 50 * time.Millisecond, // check quickly and proceed to next priority if empty
 	}).Result()
+
+	if err != nil { 
+		if strings.Contains(err.Error(), "NOGROUP") {
+			if gcErr := EnsureConsumerGroup(ctx, client, priority); gcErr == nil {
+				streams, err = client.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
+					Group:  consumerGroup,
+					Consumer: consumer,
+					Streams:  []string{stream, ">"},
+					Count: 1,
+					Block: 50 * time.Millisecond,
+				}).Result()
+			}
+		}
+	}
 
 	if err != nil { 
 		if errors.Is(err, redis.Nil){ 
@@ -217,6 +247,13 @@ func Ack(ctx context.Context, client *redisclient.Client, priority int, streamID
 
 	_, err := client.Redis.XAck(ctx, stream, consumerGroup, streamID).Result()
 	if err != nil {
+		if strings.Contains(err.Error(), "NOGROUP") {
+			if gcErr := EnsureConsumerGroup(ctx, client, priority); gcErr == nil {
+				_, err = client.Redis.XAck(ctx, stream, consumerGroup, streamID).Result()
+			}
+		}
+	}
+	if err != nil {
 		return fmt.Errorf("xack on %s: %w", stream, err)
 	}
 
@@ -241,6 +278,19 @@ func Claim(ctx context.Context, client *redisclient.Client, priority int, minIdl
 		MinIdle:  minIdle,
 		Messages: streamIDs,
 	}).Result()
+	if err != nil {
+		if strings.Contains(err.Error(), "NOGROUP") {
+			if gcErr := EnsureConsumerGroup(ctx, client, priority); gcErr == nil {
+				messages, err = client.Redis.XClaim(ctx, &redis.XClaimArgs{
+					Stream:   stream,
+					Group:    consumerGroup,
+					Consumer: consumer,
+					MinIdle:  minIdle,
+					Messages: streamIDs,
+				}).Result()
+			}
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("xclaim on %s: %w", stream, err)
 	}

@@ -145,12 +145,16 @@ func (p *Pool) work(ctx context.Context, slot int) error {
 		slog.Int("slot", slot),
 	)
 
+	// Each slot uses its own consumer name so Redis never confuses one slot's
+	// in-flight messages for another slot's idle/reclaimable messages.
+	slotConsumer := fmt.Sprintf("%s-slot-%d", p.workerID, slot)
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		t, err := p.queue.Dequeue(ctx, p.workerID)
+		t, err := p.queue.Dequeue(ctx, slotConsumer)
 		switch {
 		case errors.Is(err, ErrNoTask):
 			if waitErr := wait(ctx, p.idleBackoff); waitErr != nil {
