@@ -10,7 +10,7 @@ import (
 )
 
 type StubBroker struct {
-	mu    sync.RWMutex
+	mu    sync.RWMutex // mu is basically the mutex which lock the entry door  which means it ensure that only one pieces of code can modify or read the database on it
 	tasks map[string]models.Task
 	order []string
 }
@@ -22,6 +22,7 @@ func NewStubBroker() queue.Broker {
 	}
 }
 
+// adding atask
 func (b *StubBroker) Enqueue(ctx context.Context, task models.Task) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
