@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/ManogyaDahal/DistQ/pkg/config"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
+	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
@@ -201,6 +201,10 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 			status := "active"
 			if now-ts > timeoutSecs {
 				status = "stale"
+				if delErr := h.client.Redis.HDel(ctx, redisclient.KeyWorkers, id).Err(); delErr != nil {
+					h.logger.Debug("failed to prune stale worker", "worker_id", id, "err", delErr)
+				}
+				continue
 			}
 
 			ongoing := workerPendingCounts[id]
