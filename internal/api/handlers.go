@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -118,6 +119,33 @@ func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 		"processed_count": len(messages),
 		"results":         results,
 	})
+}
+
+func (h *Handlers) GetTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		h.writeError(w, http.StatusBadRequest, "task id is required", nil)
+		return
+	}
+
+	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, taskID)
+	data, err := h.client.Redis.HGet(r.Context(), metaKey, "data").Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			h.writeError(w, http.StatusNotFound, "task not found", nil)
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "failed to get task", err)
+		return
+	}
+
+	var t task.Task
+	if err := json.Unmarshal([]byte(data), &t); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to parse task metadata", err)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, t)
 }
 
 func (h *Handlers) writeJSON(w http.ResponseWriter, status int, data any) {

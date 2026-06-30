@@ -33,6 +33,7 @@ const MaxWorkerConcurrency = 4
 type Queue interface {
 	Dequeue(ctx context.Context, workerID string) (*task.Task, error)
 	Ack(ctx context.Context, t *task.Task) error
+	UpdateMeta(ctx context.Context, t *task.Task) error
 }
 
 type FailureHandler interface {
@@ -188,6 +189,7 @@ func (p *Pool) execute(ctx context.Context, t *task.Task, logger *slog.Logger) e
 	t.Status = task.StatusRunning
 	t.WorkerID = p.workerID
 	t.UpdatedAt = now
+	_ = p.queue.UpdateMeta(ctx, t)
 
 	if err := handler(ctx, t.Payload); err != nil {
 		return p.handleFailure(ctx, t, fmt.Errorf("worker: execute task %q: %w", t.ID, err), logger)
@@ -195,6 +197,7 @@ func (p *Pool) execute(ctx context.Context, t *task.Task, logger *slog.Logger) e
 
 	t.Status = task.StatusDone
 	t.UpdatedAt = time.Now().UTC()
+	_ = p.queue.UpdateMeta(ctx, t)
 
 	if err := p.queue.Ack(ctx, t); err != nil {
 		return fmt.Errorf("worker: ack task %q: %w", t.ID, err)
@@ -213,6 +216,7 @@ func (p *Pool) handleFailure(ctx context.Context, t *task.Task, cause error, log
 	t.Status = task.StatusFailed
 	t.ErrorMsg = cause.Error()
 	t.UpdatedAt = time.Now().UTC()
+	_ = p.queue.UpdateMeta(ctx, t)
 
 	if p.failureHandler == nil {
 		logger.Error(

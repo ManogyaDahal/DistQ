@@ -98,6 +98,11 @@ func (a *RedisQueueAdapter) Ack(ctx context.Context, t *task.Task) error {
 	return queue.Ack(ctx, a.client, priority, msgID)
 }
 
+// UpdateMeta delegates to queue.UpdateTaskMeta to persist the task status.
+func (a *RedisQueueAdapter) UpdateMeta(ctx context.Context, t *task.Task) error {
+	return queue.UpdateTaskMeta(ctx, a.client, t)
+}
+
 // ScheduleRetry puts a failed task back into the scheduled queue (ZSET) and ACKs the original stream message.
 func (a *RedisQueueAdapter) ScheduleRetry(ctx context.Context, t *task.Task) error {
 	if t == nil {
@@ -123,7 +128,7 @@ func (a *RedisQueueAdapter) ScheduleRetry(ctx context.Context, t *task.Task) err
 	// ACK the original message since it has been rescheduled as a new delayed item.
 	_ = a.ackOriginal(ctx, t.ID)
 
-	return nil
+	return a.UpdateMeta(ctx, t)
 }
 
 // MoveToDLQ pushes a failed task that exceeded max retries into the DLQ and ACKs the original stream message.
@@ -139,7 +144,7 @@ func (a *RedisQueueAdapter) MoveToDLQ(ctx context.Context, t *task.Task) error {
 	// ACK the original message since it has been stored in DLQ.
 	_ = a.ackOriginal(ctx, t.ID)
 
-	return nil
+	return a.UpdateMeta(ctx, t)
 }
 
 // ackOriginal acknowledges and removes the tracking of a message.
