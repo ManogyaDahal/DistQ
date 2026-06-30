@@ -16,12 +16,12 @@
 // no raw Redis keys, and COUNT 1 on XREADGROUP).
 package queue
 
-import ( 
+import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings" 
+	"strings"
 	"time"
 
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
@@ -31,20 +31,20 @@ import (
 
 const (
 	consumerGroup = "workers"
-	taskField = "task"
+	taskField     = "task"
 )
 
 // EnsureConsumerGroup creates the consumer group for a given priority stream
 func EnsureConsumerGroup(ctx context.Context, client *redisclient.Client, priority int) error {
-	if client == nil || client.Redis == nil { 
+	if client == nil || client.Redis == nil {
 		return errors.New("Redis client id nil")
 	}
 
 	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
 	err := client.Redis.XGroupCreateMkStream(ctx, stream, consumerGroup, "0").Err()
 
-	if err != nil { 
-		if strings.Contains(err.Error(), "BUSYGROUP"){
+	if err != nil {
+		if strings.Contains(err.Error(), "BUSYGROUP") {
 			return nil
 		}
 		return fmt.Errorf("ensure consumer group for %s: %w", stream, err)
@@ -160,49 +160,49 @@ func PendingIDs(ctx context.Context, client *redisclient.Client, priority int, m
 }
 
 // Dequeue claims a task for a woker using XREADGROUP COUNT 1
-func Dequeue(ctx context.Context, client *redisclient.Client, priority int, consumer string) (*task.Task, string, error){
-	if client == nil || client.Redis == nil { 
+func Dequeue(ctx context.Context, client *redisclient.Client, priority int, consumer string) (*task.Task, string, error) {
+	if client == nil || client.Redis == nil {
 		return nil, "", errors.New("Empty redis client")
 	}
 
 	stream := fmt.Sprintf(redisclient.KeyQueueStream, priority)
 
 	streams, err := client.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group:  consumerGroup,
+		Group:    consumerGroup,
 		Consumer: consumer,
 		Streams:  []string{stream, ">"},
-		Count: 1,
-		Block: 50 * time.Millisecond, // check quickly and proceed to next priority if empty
+		Count:    1,
+		Block:    50 * time.Millisecond, // check quickly and proceed to next priority if empty
 	}).Result()
 
-	if err != nil { 
+	if err != nil {
 		if strings.Contains(err.Error(), "NOGROUP") {
 			if gcErr := EnsureConsumerGroup(ctx, client, priority); gcErr == nil {
 				streams, err = client.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
-					Group:  consumerGroup,
+					Group:    consumerGroup,
 					Consumer: consumer,
 					Streams:  []string{stream, ">"},
-					Count: 1,
-					Block: 50 * time.Millisecond,
+					Count:    1,
+					Block:    50 * time.Millisecond,
 				}).Result()
 			}
 		}
 	}
 
-	if err != nil { 
-		if errors.Is(err, redis.Nil){ 
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, "", nil
 		}
 		return nil, "", fmt.Errorf("xreadgroup from %s: %w", stream, err)
 	}
 
-	if len(streams) == 0 || len(streams[0].Messages) == 0 { 
+	if len(streams) == 0 || len(streams[0].Messages) == 0 {
 		return nil, "", nil
 	}
 
 	msg := streams[0].Messages[0]
 	t, err := decodeTask(msg.Values)
-	if err != nil { 
+	if err != nil {
 		return nil, "", fmt.Errorf("decode task %s: %w", stream, err)
 	}
 
@@ -210,14 +210,14 @@ func Dequeue(ctx context.Context, client *redisclient.Client, priority int, cons
 }
 
 // used for decoding the encoded task with various values
-func decodeTask(values map[string]any) (*task.Task, error){ 
-	raw, ok := values[taskField]	
-	if !ok{
+func decodeTask(values map[string]any) (*task.Task, error) {
+	raw, ok := values[taskField]
+	if !ok {
 		return nil, fmt.Errorf("missing %q field", taskField)
 	}
 
 	var data []byte
-	switch v := raw.(type){ 
+	switch v := raw.(type) {
 	case string:
 		data = []byte(v)
 	case []byte:
@@ -255,6 +255,10 @@ func Ack(ctx context.Context, client *redisclient.Client, priority int, streamID
 	}
 	if err != nil {
 		return fmt.Errorf("xack on %s: %w", stream, err)
+	}
+
+	if err := client.Redis.XDel(ctx, stream, streamID).Err(); err != nil {
+		return fmt.Errorf("xdel on %s: %w", stream, err)
 	}
 
 	return nil

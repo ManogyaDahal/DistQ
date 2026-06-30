@@ -17,7 +17,7 @@ type Config struct {
 }
 
 // returns the default configuration of the task queue
-func Load() (*Config, error){ 
+func Load() (*Config, error) {
 	return &Config{
 		RedisAddr:         "localhost:6379",
 		RedisPassword:     "",

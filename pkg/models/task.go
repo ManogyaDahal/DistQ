@@ -11,11 +11,12 @@ import (
 type TaskStatus string
 
 const (
-	StatusPending TaskStatus = "pending"
-	StatusRunning TaskStatus = "running"
-	StatusSuccess TaskStatus = "success"
-	StatusFailed  TaskStatus = "failed"
-	StatusDead    TaskStatus = "dead"
+	StatusPending   TaskStatus = "pending"
+	StatusScheduled TaskStatus = "scheduled"
+	StatusRunning   TaskStatus = "running"
+	StatusSuccess   TaskStatus = "success"
+	StatusFailed    TaskStatus = "failed"
+	StatusDead      TaskStatus = "dead"
 )
 
 type Task struct {
@@ -25,6 +26,7 @@ type Task struct {
 	Status     TaskStatus     `json:"status"`
 	Priority   int            `json:"priority"`
 	RetryCount int            `json:"retry_count"`
+	ETA        *time.Time     `json:"eta,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
 }
 
@@ -33,6 +35,7 @@ type EnqueueRequest struct {
 	Type     string         `json:"type"`
 	Payload  map[string]any `json:"payload"`
 	Priority int            `json:"priority"`
+	ETA      *time.Time     `json:"eta,omitempty"`
 }
 
 // and this was after client send the task and in the response what to give to it .
