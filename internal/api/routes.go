@@ -9,6 +9,7 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
 	// REST API endpoints
+	mux.HandleFunc("POST /api/task", handlers.SubmitTask)
 	mux.HandleFunc("GET /api/metrics", handlers.GetMetrics)
 	mux.HandleFunc("GET /api/workers", handlers.GetWorkers)
 	mux.HandleFunc("GET /api/dlq", handlers.GetDLQ)

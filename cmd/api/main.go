@@ -36,7 +36,7 @@ func main() {
 	go hub.Run(ctx)
 
 	// Initialize handlers
-	handlers := api.NewHandlers(redisClient, hub, logger)
+	handlers := api.NewHandlers(redisClient, hub, cfg, logger)
 
 	// Register routes
 	mux := http.NewServeMux()
