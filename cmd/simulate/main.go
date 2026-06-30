@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/ManogyaDahal/DistQ/pkg/config"
 	"github.com/ManogyaDahal/DistQ/pkg/queue"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
