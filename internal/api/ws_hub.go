@@ -174,19 +174,24 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 		pStr := strconv.Itoa(p)
 
 		depth, err := h.client.Redis.XLen(ctx, stream).Result()
-		if err == nil {
-			queueDepths[pStr] = depth
-		} else {
+		if err != nil {
 			queueDepths[pStr] = 0
+			continue
 		}
 
 		pendingInfo, err := h.client.Redis.XPending(ctx, stream, "workers").Result()
 		if err == nil {
 			metrics["ongoing_tasks"] += pendingInfo.Count
+			if depth > pendingInfo.Count {
+				depth -= pendingInfo.Count
+			} else {
+				depth = 0
+			}
 			for consumer, countStr := range pendingInfo.Consumers {
 				workerPendingCounts[consumer] += countStr
 			}
 		}
+		queueDepths[pStr] = depth
 	}
 
 	workersList := []WorkerStatus{}

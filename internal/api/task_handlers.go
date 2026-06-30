@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ManogyaDahal/DistQ/pkg/models"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
+	taskpkg "github.com/ManogyaDahal/DistQ/pkg/task"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -18,51 +20,95 @@ func (h *Handlers) TaskEnqueue(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid json", err)
 		return
 	}
+	if strings.TrimSpace(req.Type) == "" {
+		h.writeError(w, http.StatusBadRequest, "task type is required", nil)
+		return
+	}
+
+	now := time.Now().UTC()
+	isScheduled := req.ETA != nil && req.ETA.After(now)
 
 	// Generate task ID and populate fields
-	task := models.Task{
+	apiTask := models.Task{
 		ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
 		Type:      req.Type,
 		Payload:   req.Payload,
 		Priority:  req.Priority,
 		Status:    models.StatusPending,
-		CreatedAt: time.Now(),
+		ETA:       req.ETA,
+		CreatedAt: now,
+	}
+	if isScheduled {
+		apiTask.Status = models.StatusScheduled
 	}
 
 	// Store task metadata in Redis hash
-	data, err := json.Marshal(task)
+	data, err := json.Marshal(apiTask)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to marshal task", err)
 		return
 	}
 
-	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, task.ID)
+	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, apiTask.ID)
 	if err := h.client.Redis.HSet(r.Context(), metaKey, "data", string(data)).Err(); err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to store task", err)
 		return
 	}
 
-	// Add to priority stream for workers to pick up
-	streamKey := fmt.Sprintf(redisclient.KeyQueueStream, task.Priority)
-	taskJSON, err := json.Marshal(task)
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "failed to marshal task for stream", err)
-		return
+	if isScheduled {
+		scheduledAt := req.ETA.UTC()
+		scheduledAtPtr := scheduledAt
+		payload, err := json.Marshal(taskpkg.Task{
+			ID:         apiTask.ID,
+			Type:       apiTask.Type,
+			Payload:    toRawMessage(apiTask.Payload),
+			Priority:   apiTask.Priority,
+			Status:     taskpkg.StatusPending,
+			MaxRetries: 3,
+			ETA:        &scheduledAtPtr,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		})
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to marshal scheduled task", err)
+			return
+		}
+
+		if err := h.client.Redis.ZAdd(r.Context(), redisclient.KeyScheduled, redis.Z{
+			Score:  float64(scheduledAt.Unix()),
+			Member: string(payload),
+		}).Err(); err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to schedule task", err)
+			return
+		}
+	} else {
+		// Add to priority stream for workers to pick up
+		streamKey := fmt.Sprintf(redisclient.KeyQueueStream, apiTask.Priority)
+		taskJSON, err := json.Marshal(apiTask)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to marshal task for stream", err)
+			return
+		}
+
+		if err := h.client.Redis.XAdd(r.Context(), &redis.XAddArgs{
+			Stream: streamKey,
+			Values: map[string]any{"task": string(taskJSON)},
+		}).Err(); err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to enqueue to stream", err)
+			return
+		}
 	}
 
-	if err := h.client.Redis.XAdd(r.Context(), &redis.XAddArgs{
-		Stream: streamKey,
-		Values: map[string]any{"task": string(taskJSON)},
-	}).Err(); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "failed to enqueue to stream", err)
-		return
-	}
+	h.logger.Info("task enqueued", "task_id", apiTask.ID, "type", apiTask.Type)
 
-	h.logger.Info("task enqueued", "task_id", task.ID, "type", task.Type)
+	respStatus := models.StatusPending
+	if isScheduled {
+		respStatus = models.StatusScheduled
+	}
 
 	h.writeJSON(w, http.StatusOK, models.EnqueueResponse{
-		ID:     task.ID,
-		Status: models.StatusPending,
+		ID:     apiTask.ID,
+		Status: respStatus,
 	})
 }
 
@@ -92,6 +138,14 @@ func (h *Handlers) TaskGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, task)
+}
+
+func toRawMessage(payload map[string]any) json.RawMessage {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 // TaskList handles GET /tasks — list pending tasks
