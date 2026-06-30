@@ -15,6 +15,9 @@ func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
 	mux.HandleFunc("GET /api/workers", handlers.GetWorkers)
 	mux.HandleFunc("GET /api/dlq", handlers.GetDLQ)
 	mux.HandleFunc("POST /api/dlq/retry", handlers.RetryDLQ)
+	mux.HandleFunc("GET /api/scheduled", handlers.GetScheduled)
+	mux.HandleFunc("GET /api/cron", handlers.GetCron)
+	mux.HandleFunc("GET /api/ongoing", handlers.GetOngoing)
 
 	// WebSocket telemetry stream
 	mux.HandleFunc("GET /api/ws", hub.ServeWebSocket)

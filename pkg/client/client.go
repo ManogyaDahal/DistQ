@@ -158,3 +158,113 @@ func parseErrorResponse(resp *http.Response) error {
 	}
 	return fmt.Errorf("distq api error: HTTP %d - %s", resp.StatusCode, string(body))
 }
+
+func (c *Client) getJSON(ctx context.Context, endpoint string, result any) error {
+	url := fmt.Sprintf("%s%s", c.baseURL, endpoint)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("distq client: failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("distq client: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return parseErrorResponse(resp)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("distq client: failed to decode response: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) postJSON(ctx context.Context, endpoint string, result any) error {
+	url := fmt.Sprintf("%s%s", c.baseURL, endpoint)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("distq client: failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("distq client: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return parseErrorResponse(resp)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return fmt.Errorf("distq client: failed to decode response: %w", err)
+	}
+
+	return nil
+}
+
+type MetricsResponse struct {
+	Metrics     map[string]int64 `json:"metrics"`
+	QueueDepths map[string]int64 `json:"queue_depths"`
+	Timestamp   int64            `json:"timestamp"`
+}
+
+type WorkerStatus struct {
+	ID           string `json:"id"`
+	Status       string `json:"status"`
+	LastSeen     int64  `json:"last_seen"`
+	OngoingTasks int64  `json:"ongoing_tasks"`
+}
+
+// GetMetrics returns general system metrics and queue depths.
+func (c *Client) GetMetrics(ctx context.Context) (*MetricsResponse, error) {
+	var res MetricsResponse
+	err := c.getJSON(ctx, "/api/metrics", &res)
+	return &res, err
+}
+
+// GetWorkers returns the list of registered workers and their status.
+func (c *Client) GetWorkers(ctx context.Context) ([]WorkerStatus, error) {
+	var res []WorkerStatus
+	err := c.getJSON(ctx, "/api/workers", &res)
+	return res, err
+}
+
+// GetScheduled returns all scheduled (ETA) tasks.
+func (c *Client) GetScheduled(ctx context.Context) ([]map[string]any, error) {
+	var res []map[string]any
+	err := c.getJSON(ctx, "/api/scheduled", &res)
+	return res, err
+}
+
+// GetCron returns all registered cron jobs.
+func (c *Client) GetCron(ctx context.Context) ([]map[string]any, error) {
+	var res []map[string]any
+	err := c.getJSON(ctx, "/api/cron", &res)
+	return res, err
+}
+
+// GetOngoing returns detailed information about tasks currently being processed.
+func (c *Client) GetOngoing(ctx context.Context) ([]map[string]any, error) {
+	var res []map[string]any
+	err := c.getJSON(ctx, "/api/ongoing", &res)
+	return res, err
+}
+
+// GetDLQ returns the dead-letter queue tasks.
+func (c *Client) GetDLQ(ctx context.Context) ([]map[string]any, error) {
+	var res []map[string]any
+	err := c.getJSON(ctx, "/api/dlq", &res)
+	return res, err
+}
+
+// RetryDLQ triggers a retry of all tasks currently in the DLQ.
+func (c *Client) RetryDLQ(ctx context.Context) (map[string]any, error) {
+	var res map[string]any
+	err := c.postJSON(ctx, "/api/dlq/retry", &res)
+	return res, err
+}

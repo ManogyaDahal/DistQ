@@ -340,6 +340,101 @@ func generateID() string {
 	_, _ = rand.Read(b)
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-	h := hex.EncodeToString(b)
-	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
+	hstr := hex.EncodeToString(b)
+	return hstr[0:8] + "-" + hstr[8:12] + "-" + hstr[12:16] + "-" + hstr[16:20] + "-" + hstr[20:32]
 }
+
+func (h *Handlers) GetScheduled(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	results, err := h.client.Redis.ZRangeWithScores(ctx, redisclient.KeyScheduled, 0, -1).Result()
+	if err != nil && err != redis.Nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to fetch scheduled tasks", err)
+		return
+	}
+
+	tasks := []map[string]any{}
+	for _, z := range results {
+		var t task.Task
+		if err := json.Unmarshal([]byte(z.Member.(string)), &t); err == nil {
+			tasks = append(tasks, map[string]any{
+				"task": t,
+				"eta":  z.Score,
+			})
+		}
+	}
+	h.writeJSON(w, http.StatusOK, tasks)
+}
+
+func (h *Handlers) GetCron(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cronJobs, err := h.client.Redis.HGetAll(ctx, redisclient.KeyCron).Result()
+	if err != nil && err != redis.Nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to fetch cron jobs", err)
+		return
+	}
+
+	jobs := []map[string]any{}
+	for id, data := range cronJobs {
+		var job map[string]any
+		if err := json.Unmarshal([]byte(data), &job); err == nil {
+			job["id"] = id
+			jobs = append(jobs, job)
+		}
+	}
+	h.writeJSON(w, http.StatusOK, jobs)
+}
+
+func (h *Handlers) GetOngoing(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ongoingTasks := []map[string]any{}
+
+	for _, p := range h.cfg.PriorityLevels {
+		stream := fmt.Sprintf(redisclient.KeyQueueStream, p)
+
+		pendingInfo, err := h.client.Redis.XPending(ctx, stream, "workers").Result()
+		if err != nil || pendingInfo.Count == 0 {
+			continue
+		}
+
+		for consumer := range pendingInfo.Consumers {
+			pendingMsgs, err := h.client.Redis.XPendingExt(ctx, &redis.XPendingExtArgs{
+				Stream:   stream,
+				Group:    "workers",
+				Start:    "-",
+				End:      "+",
+				Count:    1000,
+				Consumer: consumer,
+			}).Result()
+			if err != nil {
+				continue
+			}
+
+			pipe := h.client.Redis.Pipeline()
+			var cmds []*redis.XMessageSliceCmd
+			for _, pMsg := range pendingMsgs {
+				cmds = append(cmds, pipe.XRange(ctx, stream, pMsg.ID, pMsg.ID))
+			}
+			_, _ = pipe.Exec(ctx)
+
+			for i, cmd := range cmds {
+				msgs, err := cmd.Result()
+				if err != nil || len(msgs) == 0 {
+					continue
+				}
+				
+				t, err := decodeTask(msgs[0].Values)
+				if err == nil {
+					ongoingTasks = append(ongoingTasks, map[string]any{
+						"task":      t,
+						"worker_id": consumer,
+						"stream_id": pendingMsgs[i].ID,
+						"idle_ms":   pendingMsgs[i].Idle.Milliseconds(),
+						"retries":   pendingMsgs[i].RetryCount,
+					})
+				}
+			}
+		}
+	}
+	h.writeJSON(w, http.StatusOK, ongoingTasks)
+}
+
