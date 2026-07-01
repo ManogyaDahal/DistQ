@@ -73,6 +73,7 @@ func (h *Handlers) GetDLQ(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
 	ctx := r.Context()
 	messages, err := h.client.Redis.XRange(ctx, redisclient.KeyDLQ, "-", "+").Result()
 	if err != nil {
@@ -87,14 +88,23 @@ func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := []ReprocessResult{}
+	processedCount := 0
+
 	for _, msg := range messages {
 		t, err := decodeTask(msg.Values)
 		if err != nil {
 			h.logger.Error("failed to decode DLQ task", "msg_id", msg.ID, "err", err)
-			results = append(results, ReprocessResult{ID: msg.ID, Success: false, Error: "decode failed"})
+			if taskID == "" || (t != nil && t.ID == taskID) {
+				results = append(results, ReprocessResult{ID: msg.ID, Success: false, Error: "decode failed"})
+			}
 			continue
 		}
 
+		if taskID != "" && t.ID != taskID {
+			continue
+		}
+
+		processedCount++
 		t.RetryCount = 0
 		t.Status = task.StatusPending
 		t.UpdatedAt = time.Now().UTC()
@@ -115,10 +125,60 @@ func (h *Handlers) RetryDLQ(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if taskID != "" && processedCount == 0 {
+		h.writeError(w, http.StatusNotFound, fmt.Sprintf("task %s not found in DLQ", taskID), nil)
+		return
+	}
+
 	h.writeJSON(w, http.StatusOK, map[string]any{
-		"processed_count": len(messages),
+		"processed_count": processedCount,
 		"results":         results,
 	})
+}
+
+func (h *Handlers) GetCompleted(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var cursor uint64
+	var keys []string
+
+	for {
+		var err error
+		var scanKeys []string
+		scanKeys, cursor, err = h.client.Redis.Scan(ctx, cursor, "distq:task:*", 100).Result()
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to scan task keys", err)
+			return
+		}
+		keys = append(keys, scanKeys...)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	completedTasks := []task.Task{}
+	if len(keys) > 0 {
+		pipe := h.client.Redis.Pipeline()
+		var cmds []*redis.StringCmd
+		for _, key := range keys {
+			cmds = append(cmds, pipe.HGet(ctx, key, "data"))
+		}
+		_, _ = pipe.Exec(ctx)
+
+		for _, cmd := range cmds {
+			data, err := cmd.Result()
+			if err != nil {
+				continue
+			}
+			var t task.Task
+			if err := json.Unmarshal([]byte(data), &t); err == nil {
+				if t.Status == task.StatusDone {
+					completedTasks = append(completedTasks, t)
+				}
+			}
+		}
+	}
+
+	h.writeJSON(w, http.StatusOK, completedTasks)
 }
 
 func (h *Handlers) GetTask(w http.ResponseWriter, r *http.Request) {
