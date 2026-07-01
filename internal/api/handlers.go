@@ -181,6 +181,52 @@ func (h *Handlers) GetCompleted(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, completedTasks)
 }
 
+func (h *Handlers) GetEnqueued(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var cursor uint64
+	var keys []string
+
+	for {
+		var err error
+		var scanKeys []string
+		scanKeys, cursor, err = h.client.Redis.Scan(ctx, cursor, "distq:task:*", 100).Result()
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, "failed to scan task keys", err)
+			return
+		}
+		keys = append(keys, scanKeys...)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	enqueuedTasks := []task.Task{}
+	if len(keys) > 0 {
+		pipe := h.client.Redis.Pipeline()
+		var cmds []*redis.StringCmd
+		for _, key := range keys {
+			cmds = append(cmds, pipe.HGet(ctx, key, "data"))
+		}
+		_, _ = pipe.Exec(ctx)
+
+		for _, cmd := range cmds {
+			data, err := cmd.Result()
+			if err != nil {
+				continue
+			}
+			var t task.Task
+			if err := json.Unmarshal([]byte(data), &t); err == nil {
+				// Actively enqueued tasks are pending and have no future ETA
+				if t.Status == task.StatusPending && t.ETA == nil {
+					enqueuedTasks = append(enqueuedTasks, t)
+				}
+			}
+		}
+	}
+
+	h.writeJSON(w, http.StatusOK, enqueuedTasks)
+}
+
 func (h *Handlers) GetTask(w http.ResponseWriter, r *http.Request) {
 	taskID := r.PathValue("id")
 	if taskID == "" {

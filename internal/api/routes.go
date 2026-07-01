@@ -15,6 +15,7 @@ func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
 	mux.HandleFunc("GET /api/dlq", handlers.GetDLQ)
 	mux.HandleFunc("POST /api/dlq/retry", handlers.RetryDLQ)
 	mux.HandleFunc("POST /api/dlq/retry/{id}", handlers.RetryDLQ)
+	mux.HandleFunc("GET /api/enqueued", handlers.GetEnqueued)
 	mux.HandleFunc("GET /api/completed", handlers.GetCompleted)
 	mux.HandleFunc("GET /api/scheduled", handlers.GetScheduled)
 	mux.HandleFunc("GET /api/cron", handlers.GetCron)
