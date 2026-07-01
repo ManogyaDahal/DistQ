@@ -130,10 +130,11 @@ export interface RetryDLQResponse {
 export type Section =
   | 'overview'
   | 'workers'
+  | 'ongoing'
+  | 'enqueued'
   | 'dlq'
   | 'completed'
   | 'scheduled'
   | 'cron'
-  | 'ongoing'
   | 'submit'
   | 'lookup';

@@ -64,6 +64,14 @@ export function useCron() {
   return useFetch<CronJob[]>('/api/cron');
 }
 
+export function useOngoingTasks() {
+  return useFetch<Task[]>('/api/ongoing');
+}
+
+export function useEnqueuedTasks() {
+  return useFetch<Task[]>('/api/enqueued');
+}
+
 export function useOngoing() {
   return useFetch<OngoingTask[]>('/api/ongoing');
 }

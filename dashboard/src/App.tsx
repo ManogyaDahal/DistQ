@@ -6,6 +6,7 @@ import StatsGrid from './components/StatsGrid';
 import QueueDepths from './components/QueueDepths';
 import WorkersTable from './components/WorkersTable';
 import DLQPanel from './components/DLQPanel';
+import EnqueuedTasks from './components/EnqueuedTasks';
 import CompletedTasks from './components/CompletedTasks';
 import ScheduledTasks from './components/ScheduledTasks';
 import CronJobs from './components/CronJobs';
@@ -102,6 +103,12 @@ function App() {
         {activeSection === 'ongoing' && (
           <Panel title="Ongoing Tasks">
             <OngoingTasks />
+          </Panel>
+        )}
+
+        {activeSection === 'enqueued' && (
+          <Panel title="Enqueued Tasks">
+            <EnqueuedTasks />
           </Panel>
         )}
 
