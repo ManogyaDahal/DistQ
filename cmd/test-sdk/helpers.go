@@ -23,9 +23,7 @@ const (
 func Banner() {
 	fmt.Println()
 	fmt.Println(Bold + Cyan)
-	fmt.Println("==============================================")
-	fmt.Println("            DistQ SDK Test Suite")
-	fmt.Println("==============================================")
+	fmt.Println("DistQ SDK Test Suite")
 	fmt.Println(Reset)
 }
 
@@ -59,7 +57,6 @@ func Warn(msg string) {
 func PrintTask(task *models.Task) {
 	fmt.Println()
 	fmt.Println(Bold + "Task Information" + Reset)
-	fmt.Println("----------------------------------------")
 	fmt.Printf("ID        : %s\n", task.ID)
 	fmt.Printf("Type      : %s\n", task.Type)
 	fmt.Printf("Status    : %s\n", task.Status)
@@ -71,7 +68,6 @@ func PrintTask(task *models.Task) {
 	}
 
 	fmt.Printf("Created   : %s\n", task.CreatedAt.Format(time.RFC3339))
-	fmt.Println("----------------------------------------")
 }
 
 func WaitForCompletion(ctx context.Context, sdk *redisclient.SDKClient, id string) {
