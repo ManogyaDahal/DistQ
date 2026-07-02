@@ -88,6 +88,7 @@ func (h *RetryHandler) HandleFailure(ctx context.Context, t *task.Task, cause er
 	if t == nil {
 		return errors.New("worker: failed task is nil")
 	}
+
 	if cause == nil {
 		cause = errors.New("unknown task failure")
 	}
@@ -101,9 +102,11 @@ func (h *RetryHandler) HandleFailure(ctx context.Context, t *task.Task, cause er
 		maxRetries = h.maxRetries
 	}
 
+	// No retries left: permanently move task to dead-letter queue.
 	if t.RetryCount >= maxRetries {
 		t.Status = task.StatusDead
 		t.ETA = nil
+		t.UpdatedAt = time.Now().UTC()
 
 		if err := h.store.MoveToDLQ(ctx, t); err != nil {
 			return fmt.Errorf("worker: move task %q to dlq: %w", t.ID, err)
@@ -116,13 +119,17 @@ func (h *RetryHandler) HandleFailure(ctx context.Context, t *task.Task, cause er
 			slog.Int("retry_count", t.RetryCount),
 			slog.String("error", cause.Error()),
 		)
+
 		return nil
 	}
 
+	// Retries remain: schedule task for later.
 	t.RetryCount++
 	t.Status = task.StatusRetrying
+
 	retryAt := now.Add(h.backoff(t.RetryCount))
 	t.ETA = &retryAt
+	t.UpdatedAt = time.Now().UTC()
 
 	if err := h.store.ScheduleRetry(ctx, t); err != nil {
 		return fmt.Errorf("worker: schedule retry for task %q: %w", t.ID, err)
@@ -146,8 +153,10 @@ func (h *RetryHandler) backoff(attempt int) time.Duration {
 	}
 
 	delay := h.baseDelay
+
 	for i := 1; i < attempt; i++ {
 		delay *= 2
+
 		if delay >= h.maxDelay {
 			delay = h.maxDelay
 			break

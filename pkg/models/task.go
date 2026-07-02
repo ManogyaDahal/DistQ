@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-//so  this file was actually built for the language of the entire DistQ system like before the taks
-//sent to the broker and worker what the task look like what the properties it should have it is defined
-
+// TaskStatus represents the task state visible through the API.
 type TaskStatus string
 
 const (
@@ -19,6 +17,9 @@ const (
 	StatusDead      TaskStatus = "dead"
 )
 
+// Task is the API-facing task metadata stored in Redis.
+//
+// This is what GET /tasks/{id} returns to SDK users and dashboard clients.
 type Task struct {
 	ID         string         `json:"id"`
 	Type       string         `json:"type"`
@@ -28,9 +29,12 @@ type Task struct {
 	RetryCount int            `json:"retry_count"`
 	ETA        *time.Time     `json:"eta,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	WorkerID   string         `json:"worker_id,omitempty"`
+	ErrorMsg   string         `json:"error_msg,omitempty"`
 }
 
-// so this EnqueueResquest is basically what a user sends when creating a task.
+// EnqueueRequest is sent by SDK/API users when creating a task.
 type EnqueueRequest struct {
 	Type     string         `json:"type"`
 	Payload  map[string]any `json:"payload"`
@@ -38,7 +42,7 @@ type EnqueueRequest struct {
 	ETA      *time.Time     `json:"eta,omitempty"`
 }
 
-// and this was after client send the task and in the response what to give to it .
+// EnqueueResponse is returned after a task is accepted.
 type EnqueueResponse struct {
 	ID     string     `json:"id"`
 	Status TaskStatus `json:"status"`

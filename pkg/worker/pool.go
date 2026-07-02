@@ -1,20 +1,5 @@
 package worker
 
-// Package worker hosts the worker pool implementation.
-//
-// This file is intentionally comments-only scaffolding.
-//
-// Ownership:
-// - pkg/worker/pool is responsible for the worker goroutine pool.
-// - It coordinates dequeueing tasks, executing handlers, and acknowledgements.
-//
-// Implementation notes (to be added later):
-// - Use context-aware goroutines and a WaitGroup.
-// - Use pkg/queue for Redis Streams operations.
-// - Use pkg/worker/registry for handler lookup.
-// - Use pkg/worker/retry for retry/DLQ routing.
-// - Respect cancellation and ensure graceful shutdown.
-
 import (
 	"context"
 	"errors"
@@ -39,14 +24,20 @@ type FailureHandler interface {
 	HandleFailure(ctx context.Context, t *task.Task, cause error) error
 }
 
+// MetadataUpdater is implemented by RedisQueueAdapter.
+// It lets the pool save task status changes to Redis.
+type MetadataUpdater interface {
+	UpdateTaskMetadata(ctx context.Context, t *task.Task) error
+}
+
 type Pool struct {
-	workerID string
-	concurrency int
-	queue Queue
-	registry *Registry
+	workerID       string
+	concurrency    int
+	queue          Queue
+	registry       *Registry
 	failureHandler FailureHandler
-	logger *slog.Logger
-	idleBackoff time.Duration
+	logger         *slog.Logger
+	idleBackoff    time.Duration
 }
 
 type PoolOption func(*Pool)
@@ -91,11 +82,11 @@ func NewPool(workerID string, concurrency int, queue Queue, registry *Registry, 
 	}
 
 	p := &Pool{
-		workerID: workerID,
+		workerID:    workerID,
 		concurrency: concurrency,
-		queue: queue,
-		registry: registry,
-		logger: slog.Default(),
+		queue:       queue,
+		registry:    registry,
+		logger:      slog.Default(),
 		idleBackoff: 500 * time.Millisecond,
 	}
 
@@ -145,8 +136,6 @@ func (p *Pool) work(ctx context.Context, slot int) error {
 		slog.Int("slot", slot),
 	)
 
-	// Each slot uses its own consumer name so Redis never confuses one slot's
-	// in-flight messages for another slot's idle/reclaimable messages.
 	slotConsumer := fmt.Sprintf("%s-slot-%d", p.workerID, slot)
 
 	for {
@@ -155,25 +144,26 @@ func (p *Pool) work(ctx context.Context, slot int) error {
 		}
 
 		t, err := p.queue.Dequeue(ctx, slotConsumer)
+
 		switch {
 		case errors.Is(err, ErrNoTask):
 			if waitErr := wait(ctx, p.idleBackoff); waitErr != nil {
 				return waitErr
 			}
 			continue
-		
+
 		case err != nil:
 			return fmt.Errorf("worker: dequeue task: %w", err)
-			
+
 		case t == nil:
 			if waitErr := wait(ctx, p.idleBackoff); waitErr != nil {
 				return waitErr
 			}
 			continue
 		}
-			
+
 		if err := p.execute(ctx, t, logger); err != nil {
-			return err	
+			return err
 		}
 	}
 }
@@ -184,17 +174,27 @@ func (p *Pool) execute(ctx context.Context, t *task.Task, logger *slog.Logger) e
 		return p.handleFailure(ctx, t, &ErrUnknownTaskType{TaskType: t.Type}, logger)
 	}
 
-	now := time.Now().UTC()
+	// Worker has claimed the task and begins execution.
 	t.Status = task.StatusRunning
 	t.WorkerID = p.workerID
-	t.UpdatedAt = now
+	t.UpdatedAt = time.Now().UTC()
+
+	if err := p.updateMetadata(ctx, t); err != nil {
+		return fmt.Errorf("worker: update running metadata for task %q: %w", t.ID, err)
+	}
 
 	if err := handler(ctx, t.Payload); err != nil {
 		return p.handleFailure(ctx, t, fmt.Errorf("worker: execute task %q: %w", t.ID, err), logger)
 	}
 
+	// Handler succeeded.
 	t.Status = task.StatusDone
+	t.ErrorMsg = ""
 	t.UpdatedAt = time.Now().UTC()
+
+	if err := p.updateMetadata(ctx, t); err != nil {
+		return fmt.Errorf("worker: update done metadata for task %q: %w", t.ID, err)
+	}
 
 	if err := p.queue.Ack(ctx, t); err != nil {
 		return fmt.Errorf("worker: ack task %q: %w", t.ID, err)
@@ -213,6 +213,11 @@ func (p *Pool) handleFailure(ctx context.Context, t *task.Task, cause error, log
 	t.Status = task.StatusFailed
 	t.ErrorMsg = cause.Error()
 	t.UpdatedAt = time.Now().UTC()
+
+	// Store the initial failed state before retry logic decides retry/dead.
+	if err := p.updateMetadata(ctx, t); err != nil {
+		return fmt.Errorf("worker: update failed metadata for task %q: %w", t.ID, err)
+	}
 
 	if p.failureHandler == nil {
 		logger.Error(
@@ -236,6 +241,16 @@ func (p *Pool) handleFailure(ctx context.Context, t *task.Task, cause error, log
 	)
 
 	return nil
+}
+
+// updateMetadata only runs when the queue supports metadata persistence.
+func (p *Pool) updateMetadata(ctx context.Context, t *task.Task) error {
+	updater, ok := p.queue.(MetadataUpdater)
+	if !ok {
+		return nil
+	}
+
+	return updater.UpdateTaskMetadata(ctx, t)
 }
 
 func wait(ctx context.Context, d time.Duration) error {
