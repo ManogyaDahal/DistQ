@@ -209,6 +209,21 @@ func main() {
 		logger.Info("seeded cron job 'five-min-cleanup' (*/5 * * * *)")
 	}
 
+	// ── Step 7: simulate ongoing tasks by claiming them without acknowledging ──
+	// We'll claim the demo.sleep tasks seeded in Step 3 as "worker-alpha"
+	args := &redis.XReadGroupArgs{
+		Group:    "workers",
+		Consumer: "worker-alpha",
+		Streams:  []string{fmt.Sprintf(redisclient.KeyQueueStream, 5), ">"},
+		Count:    2,
+		Block:    0,
+	}
+	if _, err := client.Redis.XReadGroup(ctx, args).Result(); err != nil {
+		logger.Error("failed to claim tasks to simulate ongoing", "err", err)
+	} else {
+		logger.Info("claimed 2 demo.sleep tasks to simulate ongoing tasks")
+	}
+
 	logger.Info("✓ all done — open the dashboard at http://localhost:8080")
 	logger.Info("  start the worker with: go run ./cmd/worker to process the seeded tasks")
 }
