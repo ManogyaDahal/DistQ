@@ -10,6 +10,7 @@ import (
 // passed between broker, worker, and API.
 type Task struct {
 	ID         string          // UUID, set by the broker on enqueue
+	Name       string          // Optional human-readable name for the task
 	Type       string          // Registered handler name, e.g. "send_email"
 	Payload    json.RawMessage // Opaque bytes — handler unmarshals this
 	Priority   int             // Higher = dequeued first (default: 5)
