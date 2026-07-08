@@ -15,6 +15,19 @@ import (
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 )
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
@@ -36,7 +49,7 @@ func main() {
 	go hub.Run(ctx)
 
 	// Initialize handlers
-	handlers := api.NewHandlers(redisClient, hub, logger)
+	handlers := api.NewHandlers(redisClient, hub, cfg, logger)
 
 	// Register routes
 	mux := http.NewServeMux()
@@ -47,7 +60,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    ":" + cfg.APIPort,
-		Handler: mux,
+		Handler: corsMiddleware(mux),
 	}
 
 	go func() {

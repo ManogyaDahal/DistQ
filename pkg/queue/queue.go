@@ -90,6 +90,34 @@ func Enqueue(ctx context.Context, client *redisclient.Client, t *task.Task) (str
 	return id, nil
 }
 
+// UpdateTaskMeta updates the persistent task metadata in Redis.
+// This allows the dashboard and API to query the real-time status of a task.
+func UpdateTaskMeta(ctx context.Context, client *redisclient.Client, t *task.Task) error {
+	if client == nil || client.Redis == nil {
+		return errors.New("redis client is nil")
+	}
+	if t == nil {
+		return errors.New("task is nil")
+	}
+
+	payload, err := json.Marshal(t)
+	if err != nil {
+		return fmt.Errorf("marshal task for meta update: %w", err)
+	}
+
+	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, t.ID)
+	if err := client.Redis.HSet(ctx, metaKey, "data", payload).Err(); err != nil {
+		return fmt.Errorf("hset task meta for %s: %w", t.ID, err)
+	}
+
+	// Optionally set a TTL on the metadata so it doesn't live forever if done.
+	if t.Status == task.StatusDone || t.Status == task.StatusDead {
+		client.Redis.Expire(ctx, metaKey, 24*time.Hour)
+	}
+
+	return nil
+}
+
 // MoveToDLQ appends a dead task to the dead-letter queue stream.
 // Call this when a task has exhausted MaxRetries.
 func MoveToDLQ(ctx context.Context, client *redisclient.Client, t *task.Task) error {

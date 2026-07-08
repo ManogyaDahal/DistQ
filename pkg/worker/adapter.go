@@ -26,7 +26,6 @@ type RedisQueueAdapter struct {
 	msgPrios map[string]int
 }
 
-// NewRedisQueueAdapter creates a new RedisQueueAdapter.
 func NewRedisQueueAdapter(
 	client *redisclient.Client,
 	priorities []int,
@@ -41,8 +40,6 @@ func NewRedisQueueAdapter(
 	}
 }
 
-// Dequeue claims an existing idle/stale task from the priority streams
-// or pulls a new one.
 func (a *RedisQueueAdapter) Dequeue(
 	ctx context.Context,
 	workerID string,
@@ -51,7 +48,6 @@ func (a *RedisQueueAdapter) Dequeue(
 		return nil, errors.New("adapter: redis client is nil")
 	}
 
-	// 1. Reclaim stale tasks from the Pending Entries List.
 	for _, priority := range a.priorities {
 		ids, err := queue.PendingIDs(ctx, a.client, priority, a.minIdle, 1)
 		if err == nil && len(ids) > 0 {
@@ -64,20 +60,11 @@ func (a *RedisQueueAdapter) Dequeue(
 				a.msgPrios[t.ID] = priority
 				a.mu.Unlock()
 
-				t.Status = task.StatusRunning
-				t.WorkerID = workerID
-				t.UpdatedAt = time.Now().UTC()
-
-				if err := a.UpdateTaskMetadata(ctx, t); err != nil {
-					return nil, err
-				}
-
 				return t, nil
 			}
 		}
 	}
 
-	// 2. Read a new task from the highest available priority stream.
 	for _, priority := range a.priorities {
 		t, msgID, err := queue.Dequeue(ctx, a.client, priority, workerID)
 		if err != nil {
@@ -90,14 +77,6 @@ func (a *RedisQueueAdapter) Dequeue(
 			a.msgPrios[t.ID] = priority
 			a.mu.Unlock()
 
-			t.Status = task.StatusRunning
-			t.WorkerID = workerID
-			t.UpdatedAt = time.Now().UTC()
-
-			if err := a.UpdateTaskMetadata(ctx, t); err != nil {
-				return nil, err
-			}
-
 			return t, nil
 		}
 	}
@@ -105,12 +84,12 @@ func (a *RedisQueueAdapter) Dequeue(
 	return nil, ErrNoTask
 }
 
-// Ack acknowledges a successfully processed task and updates metadata.
 func (a *RedisQueueAdapter) Ack(ctx context.Context, t *task.Task) error {
 	if t == nil {
 		return errors.New("adapter: cannot ack nil task")
 	}
 
+	// Final SDK/API metadata save before Redis stream ACK.
 	if err := a.UpdateTaskMetadata(ctx, t); err != nil {
 		return err
 	}
@@ -135,8 +114,14 @@ func (a *RedisQueueAdapter) Ack(ctx context.Context, t *task.Task) error {
 	return queue.Ack(ctx, a.client, priority, msgID)
 }
 
-// ScheduleRetry puts a failed task back into the scheduled queue (ZSET),
-// updates metadata, and ACKs the original stream message.
+// UpdateMeta is required by the dashboard queue flow.
+func (a *RedisQueueAdapter) UpdateMeta(
+	ctx context.Context,
+	t *task.Task,
+) error {
+	return queue.UpdateTaskMeta(ctx, a.client, t)
+}
+
 func (a *RedisQueueAdapter) ScheduleRetry(
 	ctx context.Context,
 	t *task.Task,
@@ -149,6 +134,10 @@ func (a *RedisQueueAdapter) ScheduleRetry(
 		return errors.New("adapter: task ETA is nil for retry scheduling")
 	}
 
+	if err := a.UpdateMeta(ctx, t); err != nil {
+		return err
+	}
+
 	if err := a.UpdateTaskMetadata(ctx, t); err != nil {
 		return err
 	}
@@ -158,27 +147,26 @@ func (a *RedisQueueAdapter) ScheduleRetry(
 		return fmt.Errorf("adapter: marshal task for retry: %w", err)
 	}
 
-	err = a.client.Redis.ZAdd(ctx, redisclient.KeyScheduled, redis.Z{
+	if err := a.client.Redis.ZAdd(ctx, redisclient.KeyScheduled, redis.Z{
 		Score:  float64(t.ETA.Unix()),
 		Member: string(payload),
-	}).Err()
-	if err != nil {
+	}).Err(); err != nil {
 		return fmt.Errorf("adapter: zadd scheduled retry: %w", err)
 	}
 
-	// The original stream item is no longer needed because the retry
-	// was stored in the delayed-task sorted set.
 	return a.ackOriginal(ctx, t.ID)
 }
 
-// MoveToDLQ pushes a permanently failed task into the dead-letter queue,
-// updates metadata, and ACKs the original stream message.
 func (a *RedisQueueAdapter) MoveToDLQ(
 	ctx context.Context,
 	t *task.Task,
 ) error {
 	if t == nil {
 		return errors.New("adapter: cannot move nil task to DLQ")
+	}
+
+	if err := a.UpdateMeta(ctx, t); err != nil {
+		return err
 	}
 
 	if err := a.UpdateTaskMetadata(ctx, t); err != nil {
@@ -192,7 +180,7 @@ func (a *RedisQueueAdapter) MoveToDLQ(
 	return a.ackOriginal(ctx, t.ID)
 }
 
-// UpdateTaskMetadata keeps GET /tasks/{id} synchronized with worker state.
+// UpdateTaskMetadata keeps SDK GET /tasks/{id} data synchronized with worker state.
 func (a *RedisQueueAdapter) UpdateTaskMetadata(
 	ctx context.Context,
 	t *task.Task,
@@ -208,7 +196,10 @@ func (a *RedisQueueAdapter) UpdateTaskMetadata(
 		Status:     toModelStatus(t.Status),
 		ETA:        t.ETA,
 		CreatedAt:  t.CreatedAt,
+		UpdatedAt:  t.UpdatedAt,
+		WorkerID:   t.WorkerID,
 		RetryCount: t.RetryCount,
+		ErrorMsg:   t.ErrorMsg,
 	}
 
 	if len(t.Payload) > 0 {
@@ -236,7 +227,6 @@ func (a *RedisQueueAdapter) UpdateTaskMetadata(
 	return nil
 }
 
-// ackOriginal acknowledges and removes tracking for a Redis Stream message.
 func (a *RedisQueueAdapter) ackOriginal(
 	ctx context.Context,
 	taskID string,
@@ -258,30 +248,20 @@ func (a *RedisQueueAdapter) ackOriginal(
 	return nil
 }
 
-// toModelStatus converts internal worker statuses into statuses exposed
-// by the REST API and SDK.
 func toModelStatus(status task.TaskStatus) models.TaskStatus {
 	switch status {
 	case task.StatusPending:
 		return models.StatusPending
-
-	case task.StatusRunning:
+	case task.StatusClaimed, task.StatusRunning:
 		return models.StatusRunning
-
 	case task.StatusDone:
 		return models.StatusSuccess
-
 	case task.StatusRetrying:
-		// The API model currently has no "retrying" state.
-		// Pending means it is waiting to be processed again.
-		return models.StatusPending
-
+		return models.StatusScheduled
 	case task.StatusFailed:
 		return models.StatusFailed
-
 	case task.StatusDead:
 		return models.StatusDead
-
 	default:
 		return models.StatusPending
 	}

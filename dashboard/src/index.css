@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/* ── DistQ Neutral Dark Design System ──────────────────────────────────── */
+
+@theme {
+  /* Background layers */
+  --color-bg-base: #000000;
+  --color-bg-card: #0a0a0a;
+  --color-bg-surface: #111111;
+  --color-bg-elevated: #1a1a1a;
+  --color-bg-hover: #1f1f1f;
+  --color-bg-active: #252525;
+  --color-bg-input: #0d0d0d;
+
+  /* Borders */
+  --color-border-default: #1e1e1e;
+  --color-border-subtle: #171717;
+  --color-border-hover: #333333;
+  --color-border-focus: #555555;
+
+  /* Text */
+  --color-text-emphasis: #ffffff;
+  --color-text-primary: #e5e5e5;
+  --color-text-secondary: #999999;
+  --color-text-muted: #666666;
+  --color-text-faint: #444444;
+
+  /* Accent (neutral grey for buttons, active states) */
+  --color-accent: #888888;
+  --color-accent-hover: #aaaaaa;
+  --color-accent-muted: #3a3a3a;
+
+  /* Status: desaturated, subtle tones — NOT neon */
+  --color-status-ok: #3d6b3d;
+  --color-status-ok-bg: #1a2e1a;
+  --color-status-ok-text: #7fb87f;
+
+  --color-status-warn: #8a7732;
+  --color-status-warn-bg: #2e2a1a;
+  --color-status-warn-text: #c9b86c;
+
+  --color-status-danger: #7a3333;
+  --color-status-danger-bg: #2e1a1a;
+  --color-status-danger-text: #c47a7a;
+  --color-status-danger-border: #5c3030;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.6);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 350ms ease;
+}
+
+/* ── Base Resets ────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ── Selection ─────────────────────────────────────────────────────────── */
+
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-text-emphasis);
+}
+
+/* ── Links ─────────────────────────────────────────────────────────────── */
+
+a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-text-primary);
+}
+
+/* ── Utility classes ───────────────────────────────────────────────────── */
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.text-emphasis {
+  color: var(--color-text-emphasis);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+/* ── Pulse animation for connection indicator ─────────────────────────── */
+
+@keyframes pulse-connected {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-connecting {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
