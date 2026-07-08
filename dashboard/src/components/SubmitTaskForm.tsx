@@ -5,6 +5,7 @@ import type { SubmitTaskRequest, SubmitTaskResponse } from '../types';
 
 export default function SubmitTaskForm() {
   const { showToast } = useToast();
+  const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [payload, setPayload] = useState('{}');
   const [priority, setPriority] = useState(5);
@@ -44,6 +45,7 @@ export default function SubmitTaskForm() {
 
     try {
       const req: SubmitTaskRequest = {
+        name: name.trim() || undefined,
         type: type.trim(),
         payload: JSON.parse(payload),
         priority,
@@ -79,6 +81,18 @@ export default function SubmitTaskForm() {
         onSubmit={handleSubmit}
         style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
       >
+        {/* Name */}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Task Name (Optional)</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Daily Data Sync"
+            style={inputStyle}
+          />
+        </div>
+
         {/* Type */}
         <div style={fieldStyle}>
           <label style={labelStyle}>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaskBrief } from '../types';
-import { retryDLQ } from '../hooks/useApi';
+import { retryDLQ, deleteDLQ } from '../hooks/useApi';
 import { useToast } from './Toast';
 import { formatDateTime } from '../utils';
 
@@ -10,6 +10,7 @@ interface Props {
 
 export default function DLQPanel({ tasks }: Props) {
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
   const { showToast } = useToast();
 
@@ -45,6 +46,21 @@ export default function DLQPanel({ tasks }: Props) {
       );
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this task from DLQ?')) return;
+    setDeleting(id);
+    try {
+      await deleteDLQ(id);
+      showToast(`Task ${id.slice(0, 8)}… deleted`, 'success');
+      // NOTE: DLQ tasks auto-update via WebSocket in real-time,
+      // but we optimistically rely on the next WS tick to remove it.
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -132,7 +148,15 @@ export default function DLQPanel({ tasks }: Props) {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {t.id}
+                    {t.name ? (
+                      <div>
+                        <strong style={{ fontFamily: 'var(--font-sans)' }}>{t.name}</strong>
+                        <br />
+                        <span style={{ opacity: 0.6 }}>{t.id}</span>
+                      </div>
+                    ) : (
+                      t.id
+                    )}
                   </span>
                   <span
                     style={{
@@ -158,6 +182,18 @@ export default function DLQPanel({ tasks }: Props) {
                   }}
                 >
                   {retrying === t.id ? '…' : 'Retry'}
+                </button>
+                <button
+                  onClick={() => handleDeleteSingle(t.id)}
+                  disabled={deleting === t.id}
+                  style={{
+                    ...buttonSmallStyle,
+                    color: 'var(--color-status-danger-text)',
+                    borderColor: 'var(--color-status-danger-border)',
+                    opacity: deleting === t.id ? 0.5 : 1,
+                  }}
+                >
+                  {deleting === t.id ? '…' : 'Delete'}
                 </button>
               </div>
 

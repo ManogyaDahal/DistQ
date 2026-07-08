@@ -1,9 +1,22 @@
-import { useScheduled } from '../hooks/useApi';
+import { useScheduled, deleteScheduled } from '../hooks/useApi';
 import { formatDateTime } from '../utils';
+import { useToast } from './Toast';
 import type { ScheduledEntry } from '../types';
 
 export default function ScheduledTasks() {
   const { data, loading, error, refetch } = useScheduled();
+  const { showToast } = useToast();
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this scheduled task?')) return;
+    try {
+      await deleteScheduled(id);
+      showToast('Task deleted successfully', 'success');
+      refetch();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete task', 'error');
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -51,6 +64,7 @@ export default function ScheduledTasks() {
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>ETA</th>
                 <th style={thStyle}>Countdown</th>
+                <th style={thStyle}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -76,8 +90,18 @@ export default function ScheduledTasks() {
                         'transparent';
                     }}
                   >
-                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-                      {entry.task.ID}
+                    <td style={{ ...tdStyle, fontSize: '12px' }}>
+                      {entry.task.Name ? (
+                        <div>
+                          <strong>{entry.task.Name}</strong>
+                          <br />
+                          <span style={{ opacity: 0.6, fontFamily: 'var(--font-mono)' }}>
+                            {entry.task.ID}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{entry.task.ID}</span>
+                      )}
                     </td>
                     <td style={tdStyle}>
                       <span style={badgeStyle}>{entry.task.Type}</span>
@@ -103,6 +127,14 @@ export default function ScheduledTasks() {
                       }}
                     >
                       {countdown}
+                    </td>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handleDelete(entry.task.ID)}
+                        style={{ ...buttonStyle, padding: '4px 8px', color: 'var(--color-status-danger-text)' }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 );

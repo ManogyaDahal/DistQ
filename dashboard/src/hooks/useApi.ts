@@ -130,3 +130,27 @@ export async function retryDLQ(id?: string): Promise<RetryDLQResponse> {
   }
   return body;
 }
+
+export async function deleteScheduled(id: string): Promise<void> {
+  const res = await fetch(`/api/scheduled/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to delete scheduled task');
+  }
+}
+
+export async function deleteCron(id: string): Promise<void> {
+  const res = await fetch(`/api/cron/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to delete cron job');
+  }
+}
+
+export async function deleteDLQ(id: string): Promise<void> {
+  const res = await fetch(`/api/dlq/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to delete task from DLQ');
+  }
+}

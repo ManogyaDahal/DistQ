@@ -26,6 +26,7 @@ export interface WorkerStatus {
 
 export interface TaskBrief {
   id: string;
+  name?: string;
   type: string;
   priority: number;
   status: string;
@@ -37,6 +38,7 @@ export interface TaskBrief {
 
 export interface Task {
   ID: string;
+  Name?: string;
   Type: string;
   Payload: unknown;
   Priority: number;
@@ -74,6 +76,7 @@ export interface CronJob {
   id: string;
   expr: string;
   task_template: {
+    name?: string;
     type: string;
     priority: number;
     payload: unknown;
@@ -95,6 +98,7 @@ export interface OngoingTask {
 // ── POST /api/task request ──────────────────────────────────────────────────
 
 export interface SubmitTaskRequest {
+  name?: string;
   type: string;
   payload: unknown;
   priority: number;
@@ -105,6 +109,7 @@ export interface SubmitTaskRequest {
 
 export interface SubmitTaskResponse {
   id: string;
+  name?: string;
   kind: 'immediate' | 'scheduled' | 'cron';
   status?: string;
   priority?: number;

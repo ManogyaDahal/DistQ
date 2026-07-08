@@ -1,9 +1,22 @@
-import { useCron } from '../hooks/useApi';
+import { useCron, deleteCron } from '../hooks/useApi';
 import { formatEpoch } from '../utils';
+import { useToast } from './Toast';
 import type { CronJob } from '../types';
 
 export default function CronJobs() {
   const { data, loading, error, refetch } = useCron();
+  const { showToast } = useToast();
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this cron job?')) return;
+    try {
+      await deleteCron(id);
+      showToast('Cron job deleted successfully', 'success');
+      refetch();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete cron job', 'error');
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -78,21 +91,37 @@ export default function CronJobs() {
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  {job.id}
+                  {job.task_template?.name ? (
+                    <div>
+                      <strong>{job.task_template.name}</strong>
+                      <br />
+                      <span style={{ opacity: 0.6 }}>{job.id}</span>
+                    </div>
+                  ) : (
+                    job.id
+                  )}
                 </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: 'var(--color-text-emphasis)',
-                    background: 'var(--color-bg-elevated)',
-                    padding: '3px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                >
-                  {job.expr}
-                </span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--color-text-emphasis)',
+                      background: 'var(--color-bg-elevated)',
+                      padding: '3px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    {job.expr}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(job.id)}
+                    style={{ ...buttonStyle, padding: '3px 8px', color: 'var(--color-status-danger-text)' }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               {/* Template info */}
