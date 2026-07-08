@@ -173,28 +173,30 @@ export default function DLQPanel({ tasks }: Props) {
                     {t.type}
                   </span>
                 </div>
-                <button
-                  onClick={() => handleRetrySingle(t.id)}
-                  disabled={retrying === t.id}
-                  style={{
-                    ...buttonSmallStyle,
-                    opacity: retrying === t.id ? 0.5 : 1,
-                  }}
-                >
-                  {retrying === t.id ? '…' : 'Retry'}
-                </button>
-                <button
-                  onClick={() => handleDeleteSingle(t.id)}
-                  disabled={deleting === t.id}
-                  style={{
-                    ...buttonSmallStyle,
-                    color: 'var(--color-status-danger-text)',
-                    borderColor: 'var(--color-status-danger-border)',
-                    opacity: deleting === t.id ? 0.5 : 1,
-                  }}
-                >
-                  {deleting === t.id ? '…' : 'Delete'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => handleRetrySingle(t.id)}
+                    disabled={retrying === t.id}
+                    style={{
+                      ...buttonSmallStyle,
+                      opacity: retrying === t.id ? 0.5 : 1,
+                    }}
+                  >
+                    {retrying === t.id ? '…' : 'Retry'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSingle(t.id)}
+                    disabled={deleting === t.id}
+                    style={{
+                      ...buttonSmallStyle,
+                      color: 'var(--color-status-danger-text)',
+                      borderColor: 'var(--color-status-danger-border)',
+                      opacity: deleting === t.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deleting === t.id ? '…' : 'Delete'}
+                  </button>
+                </div>
               </div>
 
               {/* Error message */}
