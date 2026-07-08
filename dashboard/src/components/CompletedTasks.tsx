@@ -126,7 +126,15 @@ function TaskRow({
             >
               ▶
             </span>
-            {task.ID}
+            {task.Name ? (
+              <div>
+                <strong>{task.Name}</strong>
+                <br />
+                <span style={{ opacity: 0.6 }}>{task.ID}</span>
+              </div>
+            ) : (
+              task.ID
+            )}
           </span>
         </td>
         <td style={tdStyle}>
