@@ -268,3 +268,84 @@ func (c *Client) RetryDLQ(ctx context.Context) (map[string]any, error) {
 	err := c.postJSON(ctx, "/api/dlq/retry", &res)
 	return res, err
 }
+
+// WebhookRequest is the typed representation of a webhook task submission.
+// Use SubmitWebhook to submit this instead of manually building a raw SubmitTaskRequest.
+type WebhookRequest struct {
+	// URL is the HTTP(S) endpoint DistQ will POST to when the task runs. Required.
+	URL string
+
+	// Method is the HTTP method used for the webhook call (default: POST).
+	Method string
+
+	// Headers contains optional custom HTTP headers forwarded to the endpoint.
+	Headers map[string]string
+
+	// Body is any JSON-serializable value that will be forwarded as the request body.
+	Body any
+
+	// TimeoutSeconds caps how long the worker waits for the endpoint (max 60, default 30).
+	TimeoutSeconds int
+
+	// --- Standard task scheduling options ---
+
+	// Priority sets the queue priority (higher = runs first). Defaults to 5.
+	Priority int
+
+	// MaxRetries overrides the server default for how many times to retry on failure.
+	MaxRetries *int
+
+	// ETA delays task execution until the given time.
+	ETA *time.Time
+
+	// CronExpr makes this a recurring task using a standard 5-field cron expression.
+	CronExpr string
+}
+
+// webhookPayload mirrors the structure expected by the worker's WebhookHandler.
+// It is unexported because callers should use WebhookRequest.
+type webhookPayload struct {
+	URL            string            `json:"url"`
+	Method         string            `json:"method,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	Body           any               `json:"body,omitempty"`
+	TimeoutSeconds int               `json:"timeout_seconds,omitempty"`
+}
+
+// SubmitWebhook submits a built-in "webhook" task to the DistQ queue.
+// When the worker picks it up, it will call req.URL with the specified method,
+// headers, and body. A non-2xx response causes the task to retry per normal policy.
+//
+// Example:
+//
+//	resp, err := client.SubmitWebhook(ctx, distq.WebhookRequest{
+//	    URL:  "https://your-app.com/tasks/on-user-signup",
+//	    Body: map[string]any{"user_id": 42},
+//	})
+func (c *Client) SubmitWebhook(ctx context.Context, req WebhookRequest) (*SubmitTaskResponse, error) {
+	if req.URL == "" {
+		return nil, fmt.Errorf("distq client: WebhookRequest.URL is required")
+	}
+
+	inner := webhookPayload{
+		URL:            req.URL,
+		Method:         req.Method,
+		Headers:        req.Headers,
+		Body:           req.Body,
+		TimeoutSeconds: req.TimeoutSeconds,
+	}
+
+	payloadBytes, err := json.Marshal(inner)
+	if err != nil {
+		return nil, fmt.Errorf("distq client: failed to marshal webhook payload: %w", err)
+	}
+
+	return c.SubmitTask(ctx, SubmitTaskRequest{
+		Type:       "webhook",
+		Payload:    json.RawMessage(payloadBytes),
+		Priority:   req.Priority,
+		MaxRetries: req.MaxRetries,
+		ETA:        req.ETA,
+		CronExpr:   req.CronExpr,
+	})
+}

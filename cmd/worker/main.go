@@ -51,6 +51,13 @@ func main() {
 		log.Error("failed to register demo handlers", "err", err)
 		os.Exit(1)
 	}
+
+	// Register the built-in webhook handler so clients can define task logic
+	// by pointing DistQ at an HTTP endpoint they control.
+	if err := handlers.RegisterWebhookHandler(registry, log); err != nil {
+		log.Error("failed to register webhook handler", "err", err)
+		os.Exit(1)
+	}
 	log.Info("registered handlers", "types", registry.Types())
 
 	// Start heartbeat sender
