@@ -12,6 +12,7 @@ export default function DLQPanel({ tasks }: Props) {
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { showToast } = useToast();
 
   const handleRetryAll = async () => {
@@ -145,8 +146,24 @@ export default function DLQPanel({ tasks }: Props) {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
                     }}
+                    onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
                   >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '10px',
+                        color: 'var(--color-text-muted)',
+                        transition: 'transform var(--transition-fast)',
+                        transform: expandedId === t.id ? 'rotate(90deg)' : 'rotate(0deg)',
+                      }}
+                    >
+                      ▶
+                    </span>
                     {t.name ? (
                       <div>
                         <strong style={{ fontFamily: 'var(--font-sans)' }}>{t.name}</strong>
@@ -223,6 +240,34 @@ export default function DLQPanel({ tasks }: Props) {
                 <span>Priority {t.priority}</span>
                 <span>{formatDateTime(t.created_at)}</span>
               </div>
+
+              {/* Expanded JSON */}
+              {expandedId === t.id && (
+                <div
+                  style={{
+                    marginTop: '4px',
+                    padding: '12px',
+                    background: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    animation: 'slideUp 0.2s ease',
+                  }}
+                >
+                  <pre
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}
+                  >
+                    {JSON.stringify(t, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           ))}
         </div>

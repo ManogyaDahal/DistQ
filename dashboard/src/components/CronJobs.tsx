@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useCron, deleteCron } from '../hooks/useApi';
 import { formatEpoch } from '../utils';
 import { useToast } from './Toast';
@@ -6,6 +7,7 @@ import type { CronJob } from '../types';
 export default function CronJobs() {
   const { data, loading, error, refetch } = useCron();
   const { showToast } = useToast();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     try {
@@ -88,8 +90,24 @@ export default function CronJobs() {
                     fontFamily: 'var(--font-mono)',
                     fontSize: '12px',
                     color: 'var(--color-text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
                   }}
+                  onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
                 >
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      fontSize: '10px',
+                      color: 'var(--color-text-muted)',
+                      transition: 'transform var(--transition-fast)',
+                      transform: expandedId === job.id ? 'rotate(90deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    ▶
+                  </span>
                   {job.task_template?.name ? (
                     <div>
                       <strong>{job.task_template.name}</strong>
@@ -167,6 +185,34 @@ export default function CronJobs() {
                   </span>
                 </div>
               </div>
+
+              {/* Expanded JSON */}
+              {expandedId === job.id && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    background: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    animation: 'slideUp 0.2s ease',
+                  }}
+                >
+                  <pre
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}
+                  >
+                    {JSON.stringify(job, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           ))}
         </div>

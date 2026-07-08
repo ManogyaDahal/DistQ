@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useScheduled, deleteScheduled } from '../hooks/useApi';
 import { formatDateTime } from '../utils';
 import { useToast } from './Toast';
@@ -6,6 +7,7 @@ import type { ScheduledEntry } from '../types';
 export default function ScheduledTasks() {
   const { data, loading, error, refetch } = useScheduled();
   const { showToast } = useToast();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     try {
@@ -67,82 +69,142 @@ export default function ScheduledTasks() {
               </tr>
             </thead>
             <tbody>
-              {data.map((entry: ScheduledEntry) => {
-                const etaDate = new Date(entry.eta * 1000);
-                const now = Date.now();
-                const diffMs = etaDate.getTime() - now;
-                const countdown =
-                  diffMs > 0
-                    ? formatCountdown(diffMs)
-                    : 'Ready';
-
-                return (
-                  <tr
-                    key={entry.task.ID}
-                    style={trStyle}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        'var(--color-bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        'transparent';
-                    }}
-                  >
-                    <td style={{ ...tdStyle, fontSize: '12px' }}>
-                      {entry.task.Name ? (
-                        <div>
-                          <strong>{entry.task.Name}</strong>
-                          <br />
-                          <span style={{ opacity: 0.6, fontFamily: 'var(--font-mono)' }}>
-                            {entry.task.ID}
-                          </span>
-                        </div>
-                      ) : (
-                        <span style={{ fontFamily: 'var(--font-mono)' }}>{entry.task.ID}</span>
-                      )}
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={badgeStyle}>{entry.task.Type}</span>
-                    </td>
-                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
-                      {entry.task.Priority}
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusBadgeStyle}>{entry.task.Status}</span>
-                    </td>
-                    <td style={{ ...tdStyle, color: 'var(--color-text-secondary)' }}>
-                      {formatDateTime(etaDate.toISOString())}
-                    </td>
-                    <td
-                      style={{
-                        ...tdStyle,
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '12px',
-                        color:
-                          diffMs > 0
-                            ? 'var(--color-status-warn-text)'
-                            : 'var(--color-status-ok-text)',
-                      }}
-                    >
-                      {countdown}
-                    </td>
-                    <td style={tdStyle}>
-                      <button
-                        onClick={() => handleDelete(entry.task.ID)}
-                        style={{ ...buttonStyle, padding: '4px 8px', color: 'var(--color-status-danger-text)' }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {data.map((entry: ScheduledEntry) => (
+                <ScheduledRow
+                  key={entry.task.ID}
+                  entry={entry}
+                  expanded={expandedId === entry.task.ID}
+                  onToggle={() => setExpandedId(expandedId === entry.task.ID ? null : entry.task.ID)}
+                  onDelete={() => handleDelete(entry.task.ID)}
+                />
+              ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+function ScheduledRow({
+  entry,
+  expanded,
+  onToggle,
+  onDelete,
+}: {
+  entry: ScheduledEntry;
+  expanded: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const etaDate = new Date(entry.eta * 1000);
+  const now = Date.now();
+  const diffMs = etaDate.getTime() - now;
+  const countdown = diffMs > 0 ? formatCountdown(diffMs) : 'Ready';
+
+  return (
+    <>
+      <tr
+        style={{ ...trStyle, cursor: 'pointer' }}
+        onClick={onToggle}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-hover)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+        }}
+      >
+        <td style={{ ...tdStyle, fontSize: '12px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: '12px',
+                fontSize: '10px',
+                color: 'var(--color-text-muted)',
+                transition: 'transform var(--transition-fast)',
+                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              }}
+            >
+              ▶
+            </span>
+            {entry.task.Name ? (
+              <div>
+                <strong>{entry.task.Name}</strong>
+                <br />
+                <span style={{ opacity: 0.6, fontFamily: 'var(--font-mono)' }}>
+                  {entry.task.ID}
+                </span>
+              </div>
+            ) : (
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{entry.task.ID}</span>
+            )}
+          </span>
+        </td>
+        <td style={tdStyle}>
+          <span style={badgeStyle}>{entry.task.Type}</span>
+        </td>
+        <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+          {entry.task.Priority}
+        </td>
+        <td style={tdStyle}>
+          <span style={statusBadgeStyle}>{entry.task.Status}</span>
+        </td>
+        <td style={{ ...tdStyle, color: 'var(--color-text-secondary)' }}>
+          {formatDateTime(etaDate.toISOString())}
+        </td>
+        <td
+          style={{
+            ...tdStyle,
+            fontFamily: 'var(--font-mono)',
+            fontSize: '12px',
+            color:
+              diffMs > 0
+                ? 'var(--color-status-warn-text)'
+                : 'var(--color-status-ok-text)',
+          }}
+        >
+          {countdown}
+        </td>
+        <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={onDelete}
+            style={{ ...buttonStyle, padding: '4px 8px', color: 'var(--color-status-danger-text)' }}
+          >
+            Delete
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={7} style={{ padding: 0 }}>
+            <div
+              style={{
+                padding: '16px 24px',
+                background: 'var(--color-bg-surface)',
+                borderTop: '1px solid var(--color-border-subtle)',
+                borderBottom: '1px solid var(--color-border-subtle)',
+                animation: 'slideUp 0.2s ease',
+              }}
+            >
+              <pre
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '12px',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  margin: 0,
+                }}
+              >
+                {JSON.stringify(entry.task, null, 2)}
+              </pre>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
