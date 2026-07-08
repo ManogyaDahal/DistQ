@@ -8,7 +8,6 @@ export default function CronJobs() {
   const { showToast } = useToast();
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this cron job?')) return;
     try {
       await deleteCron(id);
       showToast('Cron job deleted successfully', 'success');

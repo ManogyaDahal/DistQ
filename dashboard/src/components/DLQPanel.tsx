@@ -50,7 +50,6 @@ export default function DLQPanel({ tasks }: Props) {
   };
 
   const handleDeleteSingle = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this task from DLQ?')) return;
     setDeleting(id);
     try {
       await deleteDLQ(id);

@@ -8,7 +8,6 @@ export default function ScheduledTasks() {
   const { showToast } = useToast();
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this scheduled task?')) return;
     try {
       await deleteScheduled(id);
       showToast('Task deleted successfully', 'success');
