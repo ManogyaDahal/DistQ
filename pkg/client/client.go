@@ -67,79 +67,128 @@ type SubmitTaskResponse struct {
 
 // TaskStatus represents the current state of a task as fetched from GET /api/task/{id}.
 type TaskStatus struct {
-	ID         string     `json:"ID"`
-	Type       string     `json:"Type"`
-	Payload    any        `json:"Payload"` // Leaving as any to allow reading general output if needed
-	Priority   int        `json:"Priority"`
-	Status     string     `json:"Status"`
-	MaxRetries int        `json:"MaxRetries"`
-	RetryCount int        `json:"RetryCount"`
-	WorkerID   string     `json:"WorkerID,omitempty"`
-	Queue      string     `json:"Queue,omitempty"`
-	CreatedAt  time.Time  `json:"CreatedAt"`
-	UpdatedAt  time.Time  `json:"UpdatedAt"`
-	ErrorMsg   string     `json:"ErrorMsg,omitempty"`
-	ETA        *time.Time `json:"ETA,omitempty"`
-	CronExpr   string     `json:"CronExpr,omitempty"`
+	ID         string     `json:"id"`
+	Type       string     `json:"type"`
+	Payload    any        `json:"payload"`
+	Priority   int        `json:"priority"`
+	Status     string     `json:"status"`
+	MaxRetries int        `json:"max_retries"`
+	RetryCount int        `json:"retry_count"`
+	WorkerID   string     `json:"worker_id,omitempty"`
+	Queue      string     `json:"queue,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ErrorMsg   string     `json:"error_msg,omitempty"`
+	ETA        *time.Time `json:"eta,omitempty"`
+	CronExpr   string     `json:"cron_expr,omitempty"`
+}
+
+// UnmarshalJSON accepts both the worker-native JSON shape used by /api/task
+// (CreatedAt, RetryCount, etc.) and the API-facing snake_case metadata shape.
+func (t *TaskStatus) UnmarshalJSON(data []byte) error {
+	type taskStatusAlias TaskStatus
+	var base taskStatusAlias
+	if err := json.Unmarshal(data, &base); err != nil {
+		return err
+	}
+
+	*t = TaskStatus(base)
+
+	var camel struct {
+		MaxRetriesCamel *int       `json:"MaxRetries"`
+		RetryCountCamel *int       `json:"RetryCount"`
+		WorkerIDCamel   string     `json:"WorkerID"`
+		CreatedAtCamel  *time.Time `json:"CreatedAt"`
+		UpdatedAtCamel  *time.Time `json:"UpdatedAt"`
+		ErrorMsgCamel   string     `json:"ErrorMsg"`
+		CronExprCamel   string     `json:"CronExpr"`
+	}
+	if err := json.Unmarshal(data, &camel); err != nil {
+		return err
+	}
+
+	if camel.MaxRetriesCamel != nil {
+		t.MaxRetries = *camel.MaxRetriesCamel
+	}
+	if camel.RetryCountCamel != nil {
+		t.RetryCount = *camel.RetryCountCamel
+	}
+	if camel.WorkerIDCamel != "" {
+		t.WorkerID = camel.WorkerIDCamel
+	}
+	if camel.CreatedAtCamel != nil {
+		t.CreatedAt = *camel.CreatedAtCamel
+	}
+	if camel.UpdatedAtCamel != nil {
+		t.UpdatedAt = *camel.UpdatedAtCamel
+	}
+	if camel.ErrorMsgCamel != "" {
+		t.ErrorMsg = camel.ErrorMsgCamel
+	}
+	if camel.CronExprCamel != "" {
+		t.CronExpr = camel.CronExprCamel
+	}
+
+	return nil
 }
 
 // SubmitTask sends a new task to the DistQ API.
 func (c *Client) SubmitTask(ctx context.Context, req SubmitTaskRequest) (*SubmitTaskResponse, error) {
 	url := fmt.Sprintf("%s/api/task", c.baseURL)
-	
+
 	bodyData, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to marshal request: %w", err)
 	}
-	
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyData))
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return nil, parseErrorResponse(resp)
 	}
-	
+
 	var result SubmitTaskResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("distq client: failed to decode response: %w", err)
 	}
-	
+
 	return &result, nil
 }
 
 // GetTask fetches the status of an existing task by its ID.
 func (c *Client) GetTask(ctx context.Context, taskID string) (*TaskStatus, error) {
 	url := fmt.Sprintf("%s/api/task/%s", c.baseURL, taskID)
-	
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to create request: %w", err)
 	}
-	
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseErrorResponse(resp)
 	}
-	
+
 	var result TaskStatus
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("distq client: failed to decode response: %w", err)
 	}
-	
+
 	return &result, nil
 }
 

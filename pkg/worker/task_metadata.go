@@ -10,11 +10,11 @@ import (
 	"github.com/ManogyaDahal/DistQ/pkg/task"
 )
 
-// updateTaskMetadata copies worker task state into the API metadata hash.
+// UpdateTaskMetadata copies worker task state into the API metadata hash.
 //
 // It first reads the task originally saved by POST /tasks so API-only data
 // such as CreatedAt and Payload are preserved.
-func (a *RedisQueueAdapter) updateTaskMetadata(ctx context.Context, t *task.Task) error {
+func (a *RedisQueueAdapter) UpdateTaskMetadata(ctx context.Context, t *task.Task) error {
 	if t == nil {
 		return fmt.Errorf("adapter: cannot update metadata for nil task")
 	}

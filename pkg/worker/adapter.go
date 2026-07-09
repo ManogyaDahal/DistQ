@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ManogyaDahal/DistQ/pkg/models"
 	"github.com/ManogyaDahal/DistQ/pkg/queue"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
@@ -180,53 +179,6 @@ func (a *RedisQueueAdapter) MoveToDLQ(
 	return a.ackOriginal(ctx, t.ID)
 }
 
-// UpdateTaskMetadata keeps SDK GET /tasks/{id} data synchronized with worker state.
-func (a *RedisQueueAdapter) UpdateTaskMetadata(
-	ctx context.Context,
-	t *task.Task,
-) error {
-	if t == nil {
-		return errors.New("adapter: cannot update metadata for nil task")
-	}
-
-	apiTask := models.Task{
-		ID:         t.ID,
-		Type:       t.Type,
-		Priority:   t.Priority,
-		Status:     toModelStatus(t.Status),
-		ETA:        t.ETA,
-		CreatedAt:  t.CreatedAt,
-		UpdatedAt:  t.UpdatedAt,
-		WorkerID:   t.WorkerID,
-		RetryCount: t.RetryCount,
-		ErrorMsg:   t.ErrorMsg,
-	}
-
-	if len(t.Payload) > 0 {
-		if err := json.Unmarshal(t.Payload, &apiTask.Payload); err != nil {
-			return fmt.Errorf("adapter: decode task payload: %w", err)
-		}
-	}
-
-	data, err := json.Marshal(apiTask)
-	if err != nil {
-		return fmt.Errorf("adapter: marshal task metadata: %w", err)
-	}
-
-	metaKey := fmt.Sprintf(redisclient.KeyTaskMeta, t.ID)
-
-	if err := a.client.Redis.HSet(
-		ctx,
-		metaKey,
-		"data",
-		string(data),
-	).Err(); err != nil {
-		return fmt.Errorf("adapter: save task metadata: %w", err)
-	}
-
-	return nil
-}
-
 func (a *RedisQueueAdapter) ackOriginal(
 	ctx context.Context,
 	taskID string,
@@ -246,23 +198,4 @@ func (a *RedisQueueAdapter) ackOriginal(
 	}
 
 	return nil
-}
-
-func toModelStatus(status task.TaskStatus) models.TaskStatus {
-	switch status {
-	case task.StatusPending:
-		return models.StatusPending
-	case task.StatusClaimed, task.StatusRunning:
-		return models.StatusRunning
-	case task.StatusDone:
-		return models.StatusSuccess
-	case task.StatusRetrying:
-		return models.StatusScheduled
-	case task.StatusFailed:
-		return models.StatusFailed
-	case task.StatusDead:
-		return models.StatusDead
-	default:
-		return models.StatusPending
-	}
 }
