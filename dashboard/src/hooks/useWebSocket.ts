@@ -5,7 +5,7 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'er
 
 export function useWebSocket() {
   const [data, setData] = useState<StatsPayload | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [status, setStatus] = useState<ConnectionStatus>('connected');
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retriesRef = useRef(0);
@@ -13,6 +13,7 @@ export function useWebSocket() {
   const connect = useCallback(() => {
     // Clean up existing connection
     if (wsRef.current) {
+      wsRef.current.onclose = null; // Prevent reconnect loop
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -24,8 +25,6 @@ export function useWebSocket() {
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws`;
-
-    setStatus('connecting');
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -72,7 +71,9 @@ export function useWebSocket() {
         clearTimeout(reconnectTimer.current);
       }
       if (wsRef.current) {
+        wsRef.current.onclose = null; // Prevent reconnect loop
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
   }, [connect]);

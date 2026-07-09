@@ -44,6 +44,7 @@ type WorkerStatus struct {
 
 type TaskBrief struct {
 	ID        string    `json:"id"`
+	Name      string    `json:"name,omitempty"`
 	Type      string    `json:"type"`
 	Priority  int       `json:"priority"`
 	Status    string    `json:"status"`
@@ -245,6 +246,7 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 			}
 			dlqTasks = append(dlqTasks, TaskBrief{
 				ID:        t.ID,
+				Name:      t.Name,
 				Type:      t.Type,
 				Priority:  t.Priority,
 				Status:    string(t.Status),

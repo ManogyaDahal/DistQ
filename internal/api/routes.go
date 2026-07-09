@@ -21,6 +21,11 @@ func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
 	mux.HandleFunc("GET /api/cron", handlers.GetCron)
 	mux.HandleFunc("GET /api/ongoing", handlers.GetOngoing)
 
+	// DELETE endpoints
+	mux.HandleFunc("DELETE /api/scheduled/{id}", handlers.DeleteScheduled)
+	mux.HandleFunc("DELETE /api/cron/{id}", handlers.DeleteCron)
+	mux.HandleFunc("DELETE /api/dlq/{id}", handlers.DeleteDLQ)
+
 	// WebSocket telemetry stream
 	mux.HandleFunc("GET /api/ws", hub.ServeWebSocket)
 

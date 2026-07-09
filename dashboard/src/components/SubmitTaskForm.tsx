@@ -5,11 +5,17 @@ import type { SubmitTaskRequest, SubmitTaskResponse } from '../types';
 
 export default function SubmitTaskForm() {
   const { showToast } = useToast();
+  const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [payload, setPayload] = useState('{}');
   const [priority, setPriority] = useState(5);
   const [maxRetries, setMaxRetries] = useState('');
   const [eta, setEta] = useState('');
+  const [minDateTime] = useState(() => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  });
   const [cronExpr, setCronExpr] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitTaskResponse | null>(null);
@@ -44,6 +50,7 @@ export default function SubmitTaskForm() {
 
     try {
       const req: SubmitTaskRequest = {
+        name: name.trim() || undefined,
         type: type.trim(),
         payload: JSON.parse(payload),
         priority,
@@ -53,9 +60,21 @@ export default function SubmitTaskForm() {
         req.max_retries = parseInt(maxRetries, 10);
       }
       if (eta.trim()) {
-        req.eta = new Date(eta).toISOString();
+        const etaDate = new Date(eta);
+        if (etaDate < new Date()) {
+          showToast('ETA cannot be in the past', 'error');
+          setSubmitting(false);
+          return;
+        }
+        req.eta = etaDate.toISOString();
       }
       if (cronExpr.trim()) {
+        const parts = cronExpr.trim().split(/\s+/);
+        if (parts.length !== 5) {
+          showToast('Invalid cron expression. Expected 5 fields (e.g. "*/5 * * * *")', 'error');
+          setSubmitting(false);
+          return;
+        }
         req.cron_expr = cronExpr.trim();
       }
 
@@ -79,6 +98,18 @@ export default function SubmitTaskForm() {
         onSubmit={handleSubmit}
         style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
       >
+        {/* Name */}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Task Name (Optional)</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Daily Data Sync"
+            style={inputStyle}
+          />
+        </div>
+
         {/* Type */}
         <div style={fieldStyle}>
           <label style={labelStyle}>
@@ -160,6 +191,7 @@ export default function SubmitTaskForm() {
           <input
             type="datetime-local"
             value={eta}
+            min={minDateTime}
             onChange={(e) => setEta(e.target.value)}
             style={inputStyle}
           />
@@ -273,3 +305,5 @@ const submitButtonStyle: React.CSSProperties = {
   transition: 'all var(--transition-fast)',
   alignSelf: 'flex-start',
 };
+
+

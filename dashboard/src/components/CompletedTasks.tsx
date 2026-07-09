@@ -69,7 +69,13 @@ export default function CompletedTasks() {
               </tr>
             </thead>
             <tbody>
-              {data.map((t: Task) => (
+              {[...data]
+                .sort(
+                  (a, b) =>
+                    new Date(b.UpdatedAt).getTime() -
+                    new Date(a.UpdatedAt).getTime()
+                )
+                .map((t: Task) => (
                 <TaskRow
                   key={t.ID}
                   task={t}
@@ -126,7 +132,15 @@ function TaskRow({
             >
               ▶
             </span>
-            {task.ID}
+            {task.Name ? (
+              <div>
+                <strong>{task.Name}</strong>
+                <br />
+                <span style={{ opacity: 0.6 }}>{task.ID}</span>
+              </div>
+            ) : (
+              task.ID
+            )}
           </span>
         </td>
         <td style={tdStyle}>

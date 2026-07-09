@@ -275,6 +275,7 @@ func (h *Handlers) writeError(w http.ResponseWriter, status int, msg string, err
 
 // SubmitTaskRequest is the JSON body expected by the POST /api/task endpoint.
 type SubmitTaskRequest struct {
+	Name       string          `json:"name,omitempty"`
 	Type       string          `json:"type"`
 	Payload    json.RawMessage `json:"payload"`
 	Priority   int             `json:"priority"`
@@ -329,6 +330,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 	// ── Case 1: Cron task ──────────────────────────────────────────────────
 	if req.CronExpr != "" {
 		template, err := json.Marshal(map[string]any{
+			"name":        req.Name,
 			"type":        req.Type,
 			"priority":    req.Priority,
 			"payload":     req.Payload,
@@ -364,6 +366,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 
 		h.writeJSON(w, http.StatusCreated, map[string]any{
 			"id":        jobID,
+			"name":      req.Name,
 			"kind":      "cron",
 			"cron_expr": req.CronExpr,
 			"status":    "registered",
@@ -374,6 +377,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 	// Build the task.
 	t := &task.Task{
 		ID:         taskID,
+		Name:       req.Name,
 		Type:       req.Type,
 		Payload:    req.Payload,
 		Priority:   req.Priority,
@@ -408,6 +412,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 
 		h.writeJSON(w, http.StatusCreated, map[string]any{
 			"id":       taskID,
+			"name":     req.Name,
 			"kind":     "scheduled",
 			"status":   string(t.Status),
 			"eta":      req.ETA,
@@ -432,6 +437,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSON(w, http.StatusCreated, map[string]any{
 		"id":        taskID,
+		"name":      req.Name,
 		"kind":      "immediate",
 		"status":    string(t.Status),
 		"priority":  req.Priority,
@@ -542,5 +548,85 @@ func (h *Handlers) GetOngoing(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.writeJSON(w, http.StatusOK, ongoingTasks)
+}
+
+func (h *Handlers) DeleteScheduled(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		h.writeError(w, http.StatusBadRequest, "task id is required", nil)
+		return
+	}
+
+	ctx := r.Context()
+	results, err := h.client.Redis.ZRange(ctx, redisclient.KeyScheduled, 0, -1).Result()
+	if err != nil && err != redis.Nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to fetch scheduled tasks", err)
+		return
+	}
+
+	for _, member := range results {
+		var t task.Task
+		if err := json.Unmarshal([]byte(member), &t); err == nil && t.ID == taskID {
+			if err := h.client.Redis.ZRem(ctx, redisclient.KeyScheduled, member).Err(); err != nil {
+				h.writeError(w, http.StatusInternalServerError, "failed to delete scheduled task", err)
+				return
+			}
+			h.writeJSON(w, http.StatusOK, map[string]any{"success": true})
+			return
+		}
+	}
+
+	h.writeError(w, http.StatusNotFound, "scheduled task not found", nil)
+}
+
+func (h *Handlers) DeleteCron(w http.ResponseWriter, r *http.Request) {
+	jobID := r.PathValue("id")
+	if jobID == "" {
+		h.writeError(w, http.StatusBadRequest, "job id is required", nil)
+		return
+	}
+
+	ctx := r.Context()
+	deleted, err := h.client.Redis.HDel(ctx, redisclient.KeyCron, jobID).Result()
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to delete cron job", err)
+		return
+	}
+
+	if deleted == 0 {
+		h.writeError(w, http.StatusNotFound, "cron job not found", nil)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (h *Handlers) DeleteDLQ(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		h.writeError(w, http.StatusBadRequest, "task id is required", nil)
+		return
+	}
+
+	ctx := r.Context()
+	messages, err := h.client.Redis.XRange(ctx, redisclient.KeyDLQ, "-", "+").Result()
+	if err != nil && err != redis.Nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to read DLQ stream", err)
+		return
+	}
+
+	for _, msg := range messages {
+		t, err := decodeTask(msg.Values)
+		if err == nil && t != nil && t.ID == taskID {
+			if err := h.client.Redis.XDel(ctx, redisclient.KeyDLQ, msg.ID).Err(); err != nil {
+				h.writeError(w, http.StatusInternalServerError, "failed to delete task from DLQ", err)
+				return
+			}
+			h.writeJSON(w, http.StatusOK, map[string]any{"success": true})
+			return
+		}
+	}
+
+	h.writeError(w, http.StatusNotFound, "task not found in DLQ", nil)
 }
 

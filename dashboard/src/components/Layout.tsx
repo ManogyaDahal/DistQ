@@ -55,7 +55,7 @@ export default function Layout({
       style={{
         display: 'flex',
         width: '100%',
-        minHeight: '100vh',
+        height: '100vh',
         background: 'var(--color-bg-base)',
       }}
     >
@@ -130,6 +130,7 @@ export default function Layout({
             display: 'flex',
             flexDirection: 'column',
             gap: '2px',
+            overflowY: 'auto',
           }}
         >
           {navItems.map((item) => {

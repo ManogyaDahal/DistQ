@@ -1,9 +1,23 @@
-import { useCron } from '../hooks/useApi';
+import { useState } from 'react';
+import { useCron, deleteCron } from '../hooks/useApi';
 import { formatEpoch } from '../utils';
+import { useToast } from './Toast';
 import type { CronJob } from '../types';
 
 export default function CronJobs() {
   const { data, loading, error, refetch } = useCron();
+  const { showToast } = useToast();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCron(id);
+      showToast('Cron job deleted successfully', 'success');
+      refetch();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete cron job', 'error');
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -76,23 +90,55 @@ export default function CronJobs() {
                     fontFamily: 'var(--font-mono)',
                     fontSize: '12px',
                     color: 'var(--color-text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
                   }}
+                  onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
                 >
-                  {job.id}
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      fontSize: '10px',
+                      color: 'var(--color-text-muted)',
+                      transition: 'transform var(--transition-fast)',
+                      transform: expandedId === job.id ? 'rotate(90deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    ▶
+                  </span>
+                  {job.task_template?.name ? (
+                    <div>
+                      <strong>{job.task_template.name}</strong>
+                      <br />
+                      <span style={{ opacity: 0.6 }}>{job.id}</span>
+                    </div>
+                  ) : (
+                    job.id
+                  )}
                 </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: 'var(--color-text-emphasis)',
-                    background: 'var(--color-bg-elevated)',
-                    padding: '3px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                >
-                  {job.expr}
-                </span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--color-text-emphasis)',
+                      background: 'var(--color-bg-elevated)',
+                      padding: '3px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    {job.expr}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(job.id)}
+                    style={{ ...buttonStyle, padding: '3px 8px', color: 'var(--color-status-danger-text)' }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               {/* Template info */}
@@ -139,6 +185,34 @@ export default function CronJobs() {
                   </span>
                 </div>
               </div>
+
+              {/* Expanded JSON */}
+              {expandedId === job.id && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    background: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    animation: 'slideUp 0.2s ease',
+                  }}
+                >
+                  <pre
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}
+                  >
+                    {JSON.stringify(job, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -46,6 +46,7 @@ func New(baseURL string, opts ...ClientOption) *Client {
 
 // SubmitTaskRequest represents the payload required to submit a task.
 type SubmitTaskRequest struct {
+	Name       string          `json:"name,omitempty"`
 	Type       string          `json:"type"`
 	Payload    json.RawMessage `json:"payload"`
 	Priority   int             `json:"priority,omitempty"`
@@ -57,6 +58,7 @@ type SubmitTaskRequest struct {
 // SubmitTaskResponse is the JSON response from the POST /api/task endpoint.
 type SubmitTaskResponse struct {
 	ID       string     `json:"id"`
+	Name     string     `json:"name,omitempty"`
 	Kind     string     `json:"kind"`
 	Status   string     `json:"status"`
 	Priority int        `json:"priority"`
@@ -272,6 +274,9 @@ func (c *Client) RetryDLQ(ctx context.Context) (map[string]any, error) {
 // WebhookRequest is the typed representation of a webhook task submission.
 // Use SubmitWebhook to submit this instead of manually building a raw SubmitTaskRequest.
 type WebhookRequest struct {
+	// Name is an optional human-readable name for the task.
+	Name string
+
 	// URL is the HTTP(S) endpoint DistQ will POST to when the task runs. Required.
 	URL string
 
@@ -341,6 +346,7 @@ func (c *Client) SubmitWebhook(ctx context.Context, req WebhookRequest) (*Submit
 	}
 
 	return c.SubmitTask(ctx, SubmitTaskRequest{
+		Name:       req.Name,
 		Type:       "webhook",
 		Payload:    json.RawMessage(payloadBytes),
 		Priority:   req.Priority,

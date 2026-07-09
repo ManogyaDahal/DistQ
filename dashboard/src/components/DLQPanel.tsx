@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaskBrief } from '../types';
-import { retryDLQ } from '../hooks/useApi';
+import { retryDLQ, deleteDLQ } from '../hooks/useApi';
 import { useToast } from './Toast';
 import { formatDateTime } from '../utils';
 
@@ -10,7 +10,9 @@ interface Props {
 
 export default function DLQPanel({ tasks }: Props) {
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { showToast } = useToast();
 
   const handleRetryAll = async () => {
@@ -45,6 +47,20 @@ export default function DLQPanel({ tasks }: Props) {
       );
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string) => {
+    setDeleting(id);
+    try {
+      await deleteDLQ(id);
+      showToast(`Task ${id.slice(0, 8)}… deleted`, 'success');
+      // NOTE: DLQ tasks auto-update via WebSocket in real-time,
+      // but we optimistically rely on the next WS tick to remove it.
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -130,9 +146,33 @@ export default function DLQPanel({ tasks }: Props) {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
                     }}
+                    onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
                   >
-                    {t.id}
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        fontSize: '10px',
+                        color: 'var(--color-text-muted)',
+                        transition: 'transform var(--transition-fast)',
+                        transform: expandedId === t.id ? 'rotate(90deg)' : 'rotate(0deg)',
+                      }}
+                    >
+                      ▶
+                    </span>
+                    {t.name ? (
+                      <div>
+                        <strong style={{ fontFamily: 'var(--font-sans)' }}>{t.name}</strong>
+                        <br />
+                        <span style={{ opacity: 0.6 }}>{t.id}</span>
+                      </div>
+                    ) : (
+                      t.id
+                    )}
                   </span>
                   <span
                     style={{
@@ -149,16 +189,30 @@ export default function DLQPanel({ tasks }: Props) {
                     {t.type}
                   </span>
                 </div>
-                <button
-                  onClick={() => handleRetrySingle(t.id)}
-                  disabled={retrying === t.id}
-                  style={{
-                    ...buttonSmallStyle,
-                    opacity: retrying === t.id ? 0.5 : 1,
-                  }}
-                >
-                  {retrying === t.id ? '…' : 'Retry'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => handleRetrySingle(t.id)}
+                    disabled={retrying === t.id}
+                    style={{
+                      ...buttonSmallStyle,
+                      opacity: retrying === t.id ? 0.5 : 1,
+                    }}
+                  >
+                    {retrying === t.id ? '…' : 'Retry'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSingle(t.id)}
+                    disabled={deleting === t.id}
+                    style={{
+                      ...buttonSmallStyle,
+                      color: 'var(--color-status-danger-text)',
+                      borderColor: 'var(--color-status-danger-border)',
+                      opacity: deleting === t.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deleting === t.id ? '…' : 'Delete'}
+                  </button>
+                </div>
               </div>
 
               {/* Error message */}
@@ -186,6 +240,34 @@ export default function DLQPanel({ tasks }: Props) {
                 <span>Priority {t.priority}</span>
                 <span>{formatDateTime(t.created_at)}</span>
               </div>
+
+              {/* Expanded JSON */}
+              {expandedId === t.id && (
+                <div
+                  style={{
+                    marginTop: '4px',
+                    padding: '12px',
+                    background: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-sm)',
+                    animation: 'slideUp 0.2s ease',
+                  }}
+                >
+                  <pre
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                    }}
+                  >
+                    {JSON.stringify(t, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           ))}
         </div>
