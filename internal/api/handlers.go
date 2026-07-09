@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/ManogyaDahal/DistQ/pkg/config"
+	"github.com/ManogyaDahal/DistQ/pkg/models"
 	"github.com/ManogyaDahal/DistQ/pkg/queue"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
@@ -169,16 +171,50 @@ func (h *Handlers) GetCompleted(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
-			var t task.Task
-			if err := json.Unmarshal([]byte(data), &t); err == nil {
-				if t.Status == task.StatusDone {
+			t, err := decodeCompletedTask([]byte(data))
+			if err == nil {
+				if t.Status == task.StatusDone || t.Status == task.TaskStatus(models.StatusSuccess) {
 					completedTasks = append(completedTasks, t)
 				}
 			}
 		}
 	}
 
+	sort.Slice(completedTasks, func(i, j int) bool {
+		return completedTasks[i].UpdatedAt.After(completedTasks[j].UpdatedAt)
+	})
+
 	h.writeJSON(w, http.StatusOK, completedTasks)
+}
+
+func decodeCompletedTask(data []byte) (task.Task, error) {
+	var apiTask models.Task
+	if err := json.Unmarshal(data, &apiTask); err == nil && apiTask.ID != "" &&
+		(apiTask.Status == models.StatusSuccess || !apiTask.CreatedAt.IsZero() || !apiTask.UpdatedAt.IsZero()) {
+		payload, err := json.Marshal(apiTask.Payload)
+		if err != nil {
+			return task.Task{}, fmt.Errorf("marshal API task payload: %w", err)
+		}
+		return task.Task{
+			ID:         apiTask.ID,
+			Type:       apiTask.Type,
+			Payload:    payload,
+			Priority:   apiTask.Priority,
+			Status:     task.TaskStatus(apiTask.Status),
+			RetryCount: apiTask.RetryCount,
+			ETA:        apiTask.ETA,
+			CreatedAt:  apiTask.CreatedAt,
+			UpdatedAt:  apiTask.UpdatedAt,
+			WorkerID:   apiTask.WorkerID,
+			ErrorMsg:   apiTask.ErrorMsg,
+		}, nil
+	}
+
+	var workerTask task.Task
+	if err := json.Unmarshal(data, &workerTask); err != nil {
+		return task.Task{}, fmt.Errorf("decode worker task metadata: %w", err)
+	}
+	return workerTask, nil
 }
 
 func (h *Handlers) GetEnqueued(w http.ResponseWriter, r *http.Request) {
@@ -245,13 +281,13 @@ func (h *Handlers) GetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var t task.Task
-	if err := json.Unmarshal([]byte(data), &t); err != nil {
+	var raw json.RawMessage
+	if err := json.Unmarshal([]byte(data), &raw); err != nil {
 		h.writeError(w, http.StatusInternalServerError, "failed to parse task metadata", err)
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, t)
+	h.writeJSON(w, http.StatusOK, raw)
 }
 
 func (h *Handlers) writeJSON(w http.ResponseWriter, status int, data any) {
@@ -527,7 +563,7 @@ func (h *Handlers) GetOngoing(w http.ResponseWriter, r *http.Request) {
 				if err != nil || len(msgs) == 0 {
 					continue
 				}
-				
+
 				t, err := decodeTask(msgs[0].Values)
 				if err == nil {
 					ongoingTasks = append(ongoingTasks, map[string]any{
@@ -543,4 +579,3 @@ func (h *Handlers) GetOngoing(w http.ResponseWriter, r *http.Request) {
 	}
 	h.writeJSON(w, http.StatusOK, ongoingTasks)
 }
-
