@@ -1,0 +1,15 @@
+// package main
+
+// import (
+// 	"context"
+
+// 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
+// )
+
+// func main() {
+// 	ctx := context.Background()
+
+// 	sdk := redisclient.NewSDK("http://localhost:8080")
+
+// 	RunAllTests(ctx, sdk)
+// }

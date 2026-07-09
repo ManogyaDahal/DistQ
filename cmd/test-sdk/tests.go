@@ -41,7 +41,7 @@ func RunAllTests(ctx context.Context, sdk *redisclient.SDKClient) {
 			5,
 			map[string]any{
 				"message":  fmt.Sprintf("NORMAL-%02d", i),
-				"duration": "15s",
+				"duration": "5s",
 			},
 		)
 
