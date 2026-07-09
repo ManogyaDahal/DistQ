@@ -18,7 +18,7 @@ export default function CompletedTasks() {
         }}
       >
         <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-          Tasks with status "done"
+          Tasks with status "done" or "success"
         </span>
         <button onClick={refetch} disabled={loading} style={buttonStyle}>
           {loading ? 'Loading…' : 'Refresh'}

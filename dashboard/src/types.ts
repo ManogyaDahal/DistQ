@@ -57,6 +57,7 @@ export type TaskStatus =
   | 'claimed'
   | 'running'
   | 'done'
+  | 'success'
   | 'failed'
   | 'retrying'
   | 'dead';
