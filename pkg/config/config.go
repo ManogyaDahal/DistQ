@@ -1,6 +1,13 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
+)
 
 // Config holds all runtime configuration loaded from environment variables.
 // Loading and validation are implemented elsewhere in this package.
@@ -16,12 +23,29 @@ type Config struct {
 	LogLevel          string        // LOG_LEVEL, default "info"
 }
 
+func getEnvOrFallback(envValue string, defaultVal string) string { 
+	value := os.Getenv(envValue)
+	if value != "" { 
+		return value
+	}
+	return defaultVal
+}
+
+
 // returns the default configuration of the task queue
 func Load() (*Config, error){ 
+	// loading env var
+	err := godotenv.Load()
+	if err != nil { 
+		return nil, err
+	}
+	// loading values for configuration
+	WorkerConcurrency, _ := strconv.Atoi(getEnvOrFallback ("WorkerConcurrency", "4"))
+
 	return &Config{
-		RedisAddr:         "localhost:6379",
-		RedisPassword:     "",
-		WorkerConcurrency: 4,
+		RedisAddr:         getEnvOrFallback( "RedisAddress", "localhost:6379"),
+		RedisPassword:     getEnvOrFallback ("RedisPassword", ""),
+		WorkerConcurrency: WorkerConcurrency,
 		HeartbeatInterval: 5 * time.Second,
 		HeartbeatTimeout:  30 * time.Second,
 		PriorityLevels:    []int{10, 5, 1},
@@ -30,3 +54,4 @@ func Load() (*Config, error){
 		LogLevel:          "info",
 	}, nil
 }
+
