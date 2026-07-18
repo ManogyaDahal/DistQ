@@ -65,6 +65,7 @@ func main() {
 	sender, err := worker.NewHeartbeatSender(workerID, heartbeatStore,
 		worker.WithHeartbeatSenderInterval(cfg.HeartbeatInterval),
 		worker.WithHeartbeatSenderLogger(log),
+		worker.WithHeartbeatSenderConcurrency(cfg.WorkerConcurrency),
 	)
 	if err != nil {
 		log.Error("failed to create heartbeat sender", "err", err)

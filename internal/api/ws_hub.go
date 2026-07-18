@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,9 @@ type WorkerStatus struct {
 	Status       string `json:"status"` // "active" or "stale"
 	LastSeen     int64  `json:"last_seen"`
 	OngoingTasks int64  `json:"ongoing_tasks"`
+	// TotalSlots is the goroutine concurrency the worker was configured with.
+	// The UI uses this to render "ongoing / total slots" instead of a bare count.
+	TotalSlots   int64  `json:"total_slots"`
 }
 
 type TaskBrief struct {
@@ -185,7 +189,11 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 		if err == nil {
 			metrics["ongoing_tasks"] += pendingInfo.Count
 			for consumer, countStr := range pendingInfo.Consumers {
-				workerPendingCounts[consumer] += countStr
+				baseID := consumer
+				if idx := strings.LastIndex(consumer, "-slot-"); idx != -1 {
+					baseID = consumer[:idx]
+				}
+				workerPendingCounts[baseID] += countStr
 			}
 		}
 	}
@@ -193,9 +201,9 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 	workersList := []WorkerStatus{}
 	dbWorkers, err := h.client.Redis.HGetAll(ctx, redisclient.KeyWorkers).Result()
 	if err == nil {
-		for id, tsStr := range dbWorkers {
-			ts, err := strconv.ParseInt(tsStr, 10, 64)
-			if err != nil {
+		for id, val := range dbWorkers {
+			ts, concurrency := parseWorkerValue(val)
+			if ts == 0 {
 				continue
 			}
 
@@ -217,6 +225,7 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 				Status:       status,
 				LastSeen:     ts,
 				OngoingTasks: ongoing,
+				TotalSlots:   concurrency,
 			})
 		}
 	}
@@ -288,3 +297,20 @@ func decodeTask(values map[string]any) (*task.Task, error) {
 
 	return &t, nil
 }
+
+// parseWorkerValue decodes a value stored in the distq:workers hash.
+// It handles two formats:
+//   - Legacy: "<unix_timestamp>"
+//   - Current: "<unix_timestamp>|<concurrency>"
+//
+// Returns (timestamp, concurrency). On parse failure, timestamp is 0.
+func parseWorkerValue(val string) (ts int64, concurrency int64) {
+	if idx := strings.Index(val, "|"); idx != -1 {
+		ts, _ = strconv.ParseInt(val[:idx], 10, 64)
+		concurrency, _ = strconv.ParseInt(val[idx+1:], 10, 64)
+	} else {
+		ts, _ = strconv.ParseInt(val, 10, 64)
+	}
+	return ts, concurrency
+}
+

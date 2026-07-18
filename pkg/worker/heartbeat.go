@@ -14,16 +14,18 @@ const (
 )
 
 type HeartbeatStore interface {
-	Beat(ctx context.Context, workerID string, at time.Time) error
+	// Beat records the worker's liveness timestamp and its goroutine concurrency.
+	Beat(ctx context.Context, workerID string, at time.Time, concurrency int) error
 	List(ctx context.Context) (map[string]time.Time, error)
 	Remove(ctx context.Context, workerID string) error
 }
 
 type HeartbeatSender struct {
-	workerID string
-	store    HeartbeatStore
-	interval time.Duration
-	logger   *slog.Logger
+	workerID    string
+	store       HeartbeatStore
+	interval    time.Duration
+	concurrency int
+	logger      *slog.Logger
 }
 
 type HeartbeatSenderOption func(*HeartbeatSender)
@@ -40,6 +42,16 @@ func WithHeartbeatSenderLogger(logger *slog.Logger) HeartbeatSenderOption {
 	return func(s *HeartbeatSender) {
 		if logger != nil {
 			s.logger = logger
+		}
+	}
+}
+
+// WithHeartbeatSenderConcurrency advertises the worker's goroutine concurrency
+// (number of parallel task slots) so the dashboard can display "X / Y slots".
+func WithHeartbeatSenderConcurrency(n int) HeartbeatSenderOption {
+	return func(s *HeartbeatSender) {
+		if n > 0 {
+			s.concurrency = n
 		}
 	}
 }
@@ -93,7 +105,7 @@ func (s *HeartbeatSender) Run(ctx context.Context) error {
 
 func (s *HeartbeatSender) beat(ctx context.Context, logger *slog.Logger) error {
 	now := time.Now().UTC()
-	if err := s.store.Beat(ctx, s.workerID, now); err != nil {
+	if err := s.store.Beat(ctx, s.workerID, now, s.concurrency); err != nil {
 		return fmt.Errorf("worker: send heartbeat for %q: %w", s.workerID, err)
 	}
 

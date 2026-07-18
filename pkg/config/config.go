@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -23,28 +22,23 @@ type Config struct {
 	LogLevel          string        // LOG_LEVEL, default "info"
 }
 
-func getEnvOrFallback(envValue string, defaultVal string) string { 
+func getEnvOrFallback(envValue string, defaultVal string) string {
 	value := os.Getenv(envValue)
-	if value != "" { 
+	if value != "" {
 		return value
 	}
 	return defaultVal
 }
 
-
 // returns the default configuration of the task queue
-func Load() (*Config, error){ 
+func Load() (*Config, error) {
 	// loading env var
-	err := godotenv.Load()
-	if err != nil { 
-		return nil, err
-	}
-	// loading values for configuration
-	WorkerConcurrency, _ := strconv.Atoi(getEnvOrFallback ("WorkerConcurrency", "4"))
+	_ = godotenv.Load()
+	WorkerConcurrency, _ := strconv.Atoi(getEnvOrFallback("WORKER_CONCURRENCY", "4"))
 
 	return &Config{
-		RedisAddr:         getEnvOrFallback( "RedisAddress", "localhost:6379"),
-		RedisPassword:     getEnvOrFallback ("RedisPassword", ""),
+		RedisAddr:         getEnvOrFallback("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:     getEnvOrFallback("REDIS_PASSWORD", ""),
 		WorkerConcurrency: WorkerConcurrency,
 		HeartbeatInterval: 5 * time.Second,
 		HeartbeatTimeout:  30 * time.Second,
@@ -54,4 +48,3 @@ func Load() (*Config, error){
 		LogLevel:          "info",
 	}, nil
 }
-

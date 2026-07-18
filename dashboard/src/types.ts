@@ -22,6 +22,8 @@ export interface WorkerStatus {
   status: 'active' | 'stale';
   last_seen: number; // unix epoch seconds
   ongoing_tasks: number;
+  /** goroutine concurrency the worker was started with (0 = legacy/unknown) */
+  total_slots: number;
 }
 
 export interface TaskBrief {

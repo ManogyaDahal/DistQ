@@ -2,8 +2,6 @@ package api
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
 )
 
 func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
@@ -28,22 +26,6 @@ func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {
 
 	// WebSocket telemetry stream
 	mux.HandleFunc("GET /api/ws", hub.ServeWebSocket)
-
-	// Serve React dashboard build
-	workDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	distPath := filepath.Join(workDir, "dashboard", "dist")
-	
-	// Check if dist folder exists
-	if _, err := os.Stat(distPath); os.IsNotExist(err) {
-		// Fallback to current directory + dashboard/dist if we're not running from project root
-		distPath = "dashboard/dist"
-	}
-
-	fileServer := http.FileServer(http.Dir(distPath))
-	mux.Handle("/", fileServer)
 
 	return nil
 }
