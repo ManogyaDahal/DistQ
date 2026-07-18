@@ -36,6 +36,11 @@ type StatsPayload struct {
 	DLQTasks    []TaskBrief      `json:"dlq_tasks"`
 }
 
+type WorkerSlotStatus struct {
+	ID     string `json:"id"`
+	Status string `json:"status"` // "idle" or "busy"
+}
+
 type WorkerStatus struct {
 	ID           string `json:"id"`
 	Status       string `json:"status"` // "active" or "stale"
@@ -43,7 +48,8 @@ type WorkerStatus struct {
 	OngoingTasks int64  `json:"ongoing_tasks"`
 	// TotalSlots is the goroutine concurrency the worker was configured with.
 	// The UI uses this to render "ongoing / total slots" instead of a bare count.
-	TotalSlots   int64  `json:"total_slots"`
+	TotalSlots   int64              `json:"total_slots"`
+	Workers      []WorkerSlotStatus `json:"workers"`
 }
 
 type TaskBrief struct {
@@ -173,6 +179,7 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 
 	queueDepths := make(map[string]int64)
 	workerPendingCounts := make(map[string]int64)
+	workerBusySlots := make(map[string]map[int]bool)
 
 	for _, p := range h.cfg.PriorityLevels {
 		stream := fmt.Sprintf(redisclient.KeyQueueStream, p)
@@ -190,10 +197,22 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 			metrics["ongoing_tasks"] += pendingInfo.Count
 			for consumer, countStr := range pendingInfo.Consumers {
 				baseID := consumer
+				slotIdx := -1
 				if idx := strings.LastIndex(consumer, "-slot-"); idx != -1 {
 					baseID = consumer[:idx]
+					slotIdxStr := consumer[idx+6:]
+					if val, err := strconv.Atoi(slotIdxStr); err == nil {
+						slotIdx = val
+					}
 				}
 				workerPendingCounts[baseID] += countStr
+				
+				if slotIdx != -1 && countStr > 0 {
+					if workerBusySlots[baseID] == nil {
+						workerBusySlots[baseID] = make(map[int]bool)
+					}
+					workerBusySlots[baseID][slotIdx] = true
+				}
 			}
 		}
 	}
@@ -213,6 +232,21 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 			}
 
 			ongoing := workerPendingCounts[id]
+			
+			var slots []WorkerSlotStatus
+			if concurrency > 0 {
+				for i := 0; i < int(concurrency); i++ {
+					slotStatus := "idle"
+					if workerBusySlots[id] != nil && workerBusySlots[id][i] {
+						slotStatus = "busy"
+					}
+					slots = append(slots, WorkerSlotStatus{
+						ID:     fmt.Sprintf("worker-%d", i),
+						Status: slotStatus,
+					})
+				}
+			}
+
 			if status == "active" {
 				metrics["total_workers"]++
 				if ongoing == 0 {
@@ -226,6 +260,7 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 				LastSeen:     ts,
 				OngoingTasks: ongoing,
 				TotalSlots:   concurrency,
+				Workers:      slots,
 			})
 		}
 	}

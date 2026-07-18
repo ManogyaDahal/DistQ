@@ -20,9 +20,9 @@ export default function WorkersTable({ workers }: Props) {
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thStyle}>Worker ID</th>
+              <th style={thStyle}>Worker Node ID</th>
               <th style={thStyle}>Status</th>
-              <th style={thStyle}>Slots In Use</th>
+              <th style={thStyle}>Workers Status</th>
               <th style={thStyle}>Last Heartbeat</th>
             </tr>
           </thead>
@@ -68,7 +68,7 @@ export default function WorkersTable({ workers }: Props) {
                   </span>
                 </td>
                 <td style={{ ...tdStyle }}>
-                  <SlotUsage ongoing={w.ongoing_tasks} total={w.total_slots} />
+                  <SlotUsage worker={w} />
                 </td>
                 <td style={{ ...tdStyle, color: 'var(--color-text-secondary)' }}>
                   {formatRelativeTime(w.last_seen)}
@@ -84,13 +84,42 @@ export default function WorkersTable({ workers }: Props) {
 
 // ── SlotUsage sub-component ─────────────────────────────────────────────────
 
-function SlotUsage({ ongoing, total }: { ongoing: number; total: number }) {
+function SlotUsage({ worker }: { worker: WorkerStatus }) {
+  const { ongoing_tasks: ongoing, total_slots: total, workers } = worker;
+
   // total=0 means the worker hasn't sent concurrency info yet (legacy)
   if (total === 0) {
     return (
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
         {ongoing} running
       </span>
+    );
+  }
+
+  if (workers && workers.length > 0) {
+    const busyCount = workers.filter(w => w.status === 'busy').length;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', maxWidth: '200px' }}>
+          {workers.map((w, i) => (
+            <div
+              key={w.id || i}
+              title={`${w.id}: ${w.status}`}
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '2px',
+                backgroundColor: w.status === 'busy' ? 'var(--color-primary, #3b82f6)' : 'var(--color-bg-elevated)',
+                border: w.status === 'busy' ? '1px solid var(--color-primary, #3b82f6)' : '1px solid var(--color-border-default)',
+                opacity: w.status === 'busy' ? 1 : 0.6,
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+          {busyCount} / {total} busy
+        </div>
+      </div>
     );
   }
 
@@ -106,7 +135,7 @@ function SlotUsage({ ongoing, total }: { ongoing: number; total: number }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '120px' }}>
-      {/* Label: "2 / 4 slots" */}
+      {/* Label: "2 / 4 workers" */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
         <span
           style={{
@@ -119,7 +148,7 @@ function SlotUsage({ ongoing, total }: { ongoing: number; total: number }) {
           {ongoing}
         </span>
         <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>
-          / {total} slots
+          / {total} workers
         </span>
         {isFull && (
           <span
