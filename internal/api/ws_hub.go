@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/ManogyaDahal/DistQ/pkg/config"
 	"github.com/ManogyaDahal/DistQ/pkg/redisclient"
 	"github.com/ManogyaDahal/DistQ/pkg/task"
+	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
@@ -47,6 +47,7 @@ type TaskBrief struct {
 	Name      string    `json:"name,omitempty"`
 	Type      string    `json:"type"`
 	Priority  int       `json:"priority"`
+	Source    string    `json:"source,omitempty"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	ErrorMsg  string    `json:"error_msg"`
@@ -174,20 +175,52 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 		stream := fmt.Sprintf(redisclient.KeyQueueStream, p)
 		pStr := strconv.Itoa(p)
 
-		depth, err := h.client.Redis.XLen(ctx, stream).Result()
-		if err == nil {
-			queueDepths[pStr] = depth
-		} else {
-			queueDepths[pStr] = 0
-		}
+		// BUG FIX: Calculate queue depth correctly using Redis Streams consumer group semantics
+		//
+		// PROBLEM with old code (using XLEN):
+		// - XLEN returns total entries ever added to stream (including acked/completed tasks)
+		// - Once tasks are ACKED, they're removed from the pending list but stay in the stream
+		// - This causes queue_depths to remain high even when all tasks are completed
+		//
+		// SOLUTION:
+		// Queue depth should represent: "tasks still waiting to be processed"
+		// This includes:
+		// 1. Pending entries = tasks claimed by workers but not yet acked (XPENDING.Count)
+		// 2. Undelivered entries = tasks in stream but never claimed by any worker yet
+		//
+		// Calculate undelivered using consumer group info:
+		// - XINFO GROUPS reports the group's lag, i.e. entries that have not yet
+		//   been delivered to that group.
 
 		pendingInfo, err := h.client.Redis.XPending(ctx, stream, "workers").Result()
+		pendingCount := int64(0)
 		if err == nil {
-			metrics["ongoing_tasks"] += pendingInfo.Count
+			pendingCount = pendingInfo.Count
+			metrics["ongoing_tasks"] += pendingCount
 			for consumer, countStr := range pendingInfo.Consumers {
 				workerPendingCounts[consumer] += countStr
 			}
 		}
+
+		// Get undelivered entries count
+		undeliveredCount := int64(0)
+		groupInfo, err := h.client.Redis.XInfoGroups(ctx, stream).Result()
+		if err == nil {
+			for _, group := range groupInfo {
+				if group.Name == "workers" {
+					// Lag is -1 when Redis cannot determine it; avoid reporting an
+					// inaccurate XLEN-based value in that case.
+					if group.Lag >= 0 {
+						undeliveredCount = group.Lag
+					}
+					break
+				}
+			}
+		}
+
+		// Queue depth = pending (being processed/retrying) + undelivered (waiting for worker)
+		// This ensures completed tasks don't contribute to queue depth
+		queueDepths[pStr] = pendingCount + undeliveredCount
 	}
 
 	workersList := []WorkerStatus{}
@@ -249,6 +282,7 @@ func (h *Hub) collectStats(ctx context.Context) (*StatsPayload, error) {
 				Name:      t.Name,
 				Type:      t.Type,
 				Priority:  t.Priority,
+				Source:    t.Source,
 				Status:    string(t.Status),
 				CreatedAt: t.CreatedAt,
 				ErrorMsg:  t.ErrorMsg,
