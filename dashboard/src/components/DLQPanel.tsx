@@ -237,7 +237,7 @@ export default function DLQPanel({ tasks }: Props) {
                   color: 'var(--color-text-muted)',
                 }}
               >
-                <span>Priority {t.priority}</span>
+                <span>Priority {t.priority} • Source {t.source ?? '-'}</span>
                 <span>{formatDateTime(t.created_at)}</span>
               </div>
 
