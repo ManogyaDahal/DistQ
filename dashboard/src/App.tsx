@@ -13,11 +13,18 @@ import CronJobs from './components/CronJobs';
 import OngoingTasks from './components/OngoingTasks';
 import SubmitTaskForm from './components/SubmitTaskForm';
 import TaskLookup from './components/TaskLookup';
+import SDKPlayground from './components/SDKPlayground';
 import type { Section } from './types';
 
 function App() {
   const { data, status } = useWebSocket();
   const [activeSection, setActiveSection] = useState<Section>('overview');
+  const viewTaskInDashboard = (taskId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('taskId', taskId);
+    window.history.replaceState({ taskId }, '', url);
+    setActiveSection('overview');
+  };
 
   const metrics = data?.metrics ?? {
     ongoing_tasks: 0,
@@ -115,6 +122,12 @@ function App() {
         {activeSection === 'submit' && (
           <Panel title="Submit Task">
             <SubmitTaskForm />
+          </Panel>
+        )}
+
+        {activeSection === 'sdk' && (
+          <Panel title="SDK Playground">
+            <SDKPlayground onViewDashboard={viewTaskInDashboard} />
           </Panel>
         )}
 

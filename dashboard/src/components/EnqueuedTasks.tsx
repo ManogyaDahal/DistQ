@@ -28,6 +28,7 @@ export default function EnqueuedTasks() {
           <thead>
             <tr>
               <th style={thStyle}>ID</th>
+              <th style={thStyle}>Source</th>
               <th style={thStyle}>Type</th>
               <th style={thStyle}>Priority</th>
               <th style={thStyle}>Created At</th>
@@ -50,6 +51,7 @@ export default function EnqueuedTasks() {
                     <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)' }}>
                       {task.ID.substring(0, 8)}...
                     </td>
+                    <td style={tdStyle}>{(task as any).Source ?? '-'}</td>
                     <td style={tdStyle}>{task.Type}</td>
                     <td style={tdStyle}>
                       <span

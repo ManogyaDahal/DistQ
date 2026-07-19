@@ -44,6 +44,7 @@ export default function OngoingTasks() {
             <thead>
               <tr>
                 <th style={thStyle}>Task ID</th>
+                <th style={thStyle}>Source</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Worker</th>
                 <th style={thStyle}>Stream ID</th>
@@ -73,6 +74,9 @@ export default function OngoingTasks() {
                     }}
                   >
                     {entry.task.ID}
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{entry.task.Source ?? '-'}</span>
                   </td>
                   <td style={tdStyle}>
                     <span style={badgeStyle}>{entry.task.Type}</span>

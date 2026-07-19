@@ -54,6 +54,7 @@ export default function SubmitTaskForm() {
         type: type.trim(),
         payload: JSON.parse(payload),
         priority,
+        source: 'Dashboard',
       };
 
       if (maxRetries.trim()) {

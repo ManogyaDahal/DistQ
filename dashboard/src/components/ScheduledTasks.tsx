@@ -60,6 +60,7 @@ export default function ScheduledTasks() {
             <thead>
               <tr>
                 <th style={thStyle}>Task ID</th>
+                <th style={thStyle}>Source</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Priority</th>
                 <th style={thStyle}>Status</th>
@@ -141,6 +142,7 @@ function ScheduledRow({
             )}
           </span>
         </td>
+        <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{entry.task.Source ?? '-'}</td>
         <td style={tdStyle}>
           <span style={badgeStyle}>{entry.task.Type}</span>
         </td>
