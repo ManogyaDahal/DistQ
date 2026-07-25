@@ -126,9 +126,7 @@ function App() {
         )}
 
         {activeSection === 'sdk' && (
-          <Panel title="SDK Playground">
-            <SDKPlayground onViewDashboard={viewTaskInDashboard} />
-          </Panel>
+          <SDKPlayground onViewDashboard={viewTaskInDashboard} />
         )}
 
         {activeSection === 'lookup' && (
