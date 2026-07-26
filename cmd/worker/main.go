@@ -45,10 +45,16 @@ func main() {
 
 	log.Info("starting worker process")
 
-	memoryDetails, err := config.LoadMemoryDetails(cfg.MemoryDetailsPath)
+	fallbackMemoryDetails, err := config.LoadMemoryDetails(cfg.MemoryDetailsPath)
 	if err != nil {
 		log.Error("failed to load memory details", "path", cfg.MemoryDetailsPath, "err", err)
 		os.Exit(1)
+	}
+
+	memoryDetails, err := config.LoadDeviceMemoryDetails(fallbackMemoryDetails.MemoryPerWorkerMB)
+	if err != nil {
+		log.Warn("failed to load device memory details, falling back to configured memory details", "err", err)
+		memoryDetails = fallbackMemoryDetails
 	}
 
 	poolConcurrency, err := config.WorkerConcurrencyFromMemory(memoryDetails)
