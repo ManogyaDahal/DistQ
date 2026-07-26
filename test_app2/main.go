@@ -28,7 +28,7 @@ func main() {
 
 	// 3. Randomly submit tasks
 	for {
-		interval := time.Duration(rand.Intn(4000)+1000) * time.Millisecond
+		interval := time.Duration(rand.Intn(4000)) * time.Millisecond
 		time.Sleep(interval)
 
 		fmt.Println("Submitting new webhook task...")

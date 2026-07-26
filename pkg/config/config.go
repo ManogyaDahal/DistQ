@@ -21,6 +21,7 @@ type Config struct {
 	LogLevel          string        // LOG_LEVEL, default "info"
 	MemoryPerWorkerMB int           // MEMORY_PER_WORKER_MB, default 128
 	MemoryDetailsPath string        // MEMORY_DETAILS_PATH, default "dummy_memory_details.json"
+	WorkerConcurrency int
 }
 
 func getEnvOrFallback(envValue string, defaultVal string) string {

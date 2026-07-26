@@ -45,15 +45,14 @@ func main() {
 
 	log.Info("starting worker process")
 
-	fallbackMemoryDetails, err := config.LoadMemoryDetails(cfg.MemoryDetailsPath)
-	if err != nil {
-		log.Error("failed to load memory details", "path", cfg.MemoryDetailsPath, "err", err)
-		os.Exit(1)
-	}
-
-	memoryDetails, err := config.LoadDeviceMemoryDetails(fallbackMemoryDetails.MemoryPerWorkerMB)
+	memoryDetails, err := config.LoadDeviceMemoryDetails(cfg.MemoryPerWorkerMB)
 	if err != nil {
 		log.Warn("failed to load device memory details, falling back to configured memory details", "err", err)
+		fallbackMemoryDetails, err := config.LoadMemoryDetails(cfg.MemoryDetailsPath)
+		if err != nil {
+			log.Error("failed to load memory details", "path", cfg.MemoryDetailsPath, "err", err)
+			os.Exit(1)
+		}
 		memoryDetails = fallbackMemoryDetails
 	}
 
@@ -89,7 +88,7 @@ func main() {
 	sender, err := worker.NewHeartbeatSender(workerID, heartbeatStore,
 		worker.WithHeartbeatSenderInterval(cfg.HeartbeatInterval),
 		worker.WithHeartbeatSenderLogger(log),
-		worker.WithHeartbeatSenderConcurrency(cfg.WorkerConcurrency),
+		worker.WithHeartbeatSenderConcurrency(poolConcurrency),
 	)
 	if err != nil {
 		log.Error("failed to create heartbeat sender", "err", err)

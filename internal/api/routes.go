@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
 func RegisterRoutes(mux *http.ServeMux, handlers *Handlers, hub *Hub) error {

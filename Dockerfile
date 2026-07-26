@@ -23,6 +23,7 @@ FROM alpine:latest
 WORKDIR /app
 # Copy the built binary
 COPY --from=builder /build/bin/app /app/app
+COPY dummy_memory_details.json /app/dummy_memory_details.json
 
 # Expose ports that might be used (API uses 8080)
 EXPOSE 8080
