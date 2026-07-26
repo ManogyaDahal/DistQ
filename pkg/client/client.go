@@ -53,6 +53,8 @@ type SubmitTaskRequest struct {
 	MaxRetries *int            `json:"max_retries,omitempty"`
 	ETA        *time.Time      `json:"eta,omitempty"`
 	CronExpr   string          `json:"cron_expr,omitempty"`
+	// Source indicates the origin of the task (e.g. "Go SDK", "Dashboard").
+	Source string `json:"source,omitempty"`
 }
 
 // SubmitTaskResponse is the JSON response from the POST /api/task endpoint.
@@ -88,60 +90,60 @@ type TaskStatus struct {
 // SubmitTask sends a new task to the DistQ API.
 func (c *Client) SubmitTask(ctx context.Context, req SubmitTaskRequest) (*SubmitTaskResponse, error) {
 	url := fmt.Sprintf("%s/api/task", c.baseURL)
-	
+
 	bodyData, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to marshal request: %w", err)
 	}
-	
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyData))
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return nil, parseErrorResponse(resp)
 	}
-	
+
 	var result SubmitTaskResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("distq client: failed to decode response: %w", err)
 	}
-	
+
 	return &result, nil
 }
 
 // GetTask fetches the status of an existing task by its ID.
 func (c *Client) GetTask(ctx context.Context, taskID string) (*TaskStatus, error) {
 	url := fmt.Sprintf("%s/api/task/%s", c.baseURL, taskID)
-	
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: failed to create request: %w", err)
 	}
-	
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("distq client: request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseErrorResponse(resp)
 	}
-	
+
 	var result TaskStatus
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("distq client: failed to decode response: %w", err)
 	}
-	
+
 	return &result, nil
 }
 

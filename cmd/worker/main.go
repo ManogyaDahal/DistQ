@@ -45,6 +45,30 @@ func main() {
 
 	log.Info("starting worker process")
 
+	fallbackMemoryDetails, err := config.LoadMemoryDetails(cfg.MemoryDetailsPath)
+	if err != nil {
+		log.Error("failed to load memory details", "path", cfg.MemoryDetailsPath, "err", err)
+		os.Exit(1)
+	}
+
+	memoryDetails, err := config.LoadDeviceMemoryDetails(fallbackMemoryDetails.MemoryPerWorkerMB)
+	if err != nil {
+		log.Warn("failed to load device memory details, falling back to configured memory details", "err", err)
+		memoryDetails = fallbackMemoryDetails
+	}
+
+	poolConcurrency, err := config.WorkerConcurrencyFromMemory(memoryDetails)
+	if err != nil {
+		log.Error("failed to calculate worker concurrency", "err", err)
+		os.Exit(1)
+	}
+	log.Info(
+		"resolved worker concurrency",
+		"effective_concurrency", poolConcurrency,
+		"available_memory_mb", memoryDetails.AvailableMemoryMB,
+		"memory_per_worker_mb", memoryDetails.MemoryPerWorkerMB,
+	)
+
 	// Build a worker registry and register demo handlers
 	registry := worker.NewRegistry()
 	if err := handlers.RegisterDemoHandlers(registry, log); err != nil {
@@ -94,7 +118,7 @@ func main() {
 	}
 
 	// Initialize and run the worker pool
-	pool, err := worker.NewPool(workerID, cfg.WorkerConcurrency, queueAdapter, registry,
+	pool, err := worker.NewPool(workerID, poolConcurrency, queueAdapter, registry,
 		worker.WithFailureHandler(retryHandler),
 		worker.WithLogger(log),
 	)
@@ -103,7 +127,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info("worker pool running", "concurrency", cfg.WorkerConcurrency)
+	log.Info("worker pool running", "concurrency", poolConcurrency)
 	if err := pool.Run(ctx); err != nil && err != context.Canceled {
 		log.Error("worker pool exited with error", "err", err)
 		os.Exit(1)

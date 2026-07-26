@@ -28,8 +28,6 @@ import (
 
 var ErrNoTask = errors.New("worker: no task available")
 
-const MaxWorkerConcurrency = 4
-
 type Queue interface {
 	Dequeue(ctx context.Context, workerID string) (*task.Task, error)
 	Ack(ctx context.Context, t *task.Task) error
@@ -41,13 +39,13 @@ type FailureHandler interface {
 }
 
 type Pool struct {
-	workerID string
-	concurrency int
-	queue Queue
-	registry *Registry
+	workerID       string
+	concurrency    int
+	queue          Queue
+	registry       *Registry
 	failureHandler FailureHandler
-	logger *slog.Logger
-	idleBackoff time.Duration
+	logger         *slog.Logger
+	idleBackoff    time.Duration
 }
 
 type PoolOption func(*Pool)
@@ -81,9 +79,6 @@ func NewPool(workerID string, concurrency int, queue Queue, registry *Registry, 
 	if concurrency < 1 {
 		return nil, errors.New("worker: concurrency must be at least 1")
 	}
-	if concurrency > MaxWorkerConcurrency {
-		return nil, fmt.Errorf("worker: concurrency cannot exceed %d", MaxWorkerConcurrency)
-	}
 	if queue == nil {
 		return nil, errors.New("worker: queue is required")
 	}
@@ -92,11 +87,11 @@ func NewPool(workerID string, concurrency int, queue Queue, registry *Registry, 
 	}
 
 	p := &Pool{
-		workerID: workerID,
+		workerID:    workerID,
 		concurrency: concurrency,
-		queue: queue,
-		registry: registry,
-		logger: slog.Default(),
+		queue:       queue,
+		registry:    registry,
+		logger:      slog.Default(),
 		idleBackoff: 500 * time.Millisecond,
 	}
 
@@ -162,19 +157,19 @@ func (p *Pool) work(ctx context.Context, slot int) error {
 				return waitErr
 			}
 			continue
-		
+
 		case err != nil:
 			return fmt.Errorf("worker: dequeue task: %w", err)
-			
+
 		case t == nil:
 			if waitErr := wait(ctx, p.idleBackoff); waitErr != nil {
 				return waitErr
 			}
 			continue
 		}
-			
+
 		if err := p.execute(ctx, t, logger); err != nil {
-			return err	
+			return err
 		}
 	}
 }

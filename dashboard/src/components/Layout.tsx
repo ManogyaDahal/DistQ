@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
   { id: 'cron', label: 'Cron Jobs', icon: '↻' },
   { id: 'dlq', label: 'Dead-Letter', icon: '✕' },
   { id: 'submit', label: 'Submit Task', icon: '+' },
+  { id: 'sdk', label: 'SDK Playground', icon: '⚡' },
   { id: 'lookup', label: 'Task Lookup', icon: '⌕' },
 ];
 
@@ -39,6 +40,7 @@ const sectionTitles: Record<Section, string> = {
   cron: 'Cron Jobs',
   dlq: 'Dead-Letter Queue',
   submit: 'Submit Task',
+  sdk: 'SDK Playground',
   lookup: 'Task Lookup',
 };
 

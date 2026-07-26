@@ -282,6 +282,8 @@ type SubmitTaskRequest struct {
 	MaxRetries *int            `json:"max_retries,omitempty"`
 	ETA        *time.Time      `json:"eta,omitempty"`
 	CronExpr   string          `json:"cron_expr,omitempty"`
+	// Source indicates where the request originated (e.g. "Dashboard", "Go SDK")
+	Source string `json:"source,omitempty"`
 }
 
 // SubmitTask handles POST /api/task — the primary endpoint for external
@@ -335,6 +337,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 			"priority":    req.Priority,
 			"payload":     req.Payload,
 			"max_retries": maxRetries,
+			"source":      req.Source,
 		})
 		if err != nil {
 			h.writeError(w, http.StatusInternalServerError, "failed to marshal cron template", err)
@@ -381,6 +384,7 @@ func (h *Handlers) SubmitTask(w http.ResponseWriter, r *http.Request) {
 		Type:       req.Type,
 		Payload:    req.Payload,
 		Priority:   req.Priority,
+		Source:     req.Source,
 		Status:     task.StatusPending,
 		MaxRetries: maxRetries,
 		ETA:        req.ETA,
@@ -533,7 +537,7 @@ func (h *Handlers) GetOngoing(w http.ResponseWriter, r *http.Request) {
 				if err != nil || len(msgs) == 0 {
 					continue
 				}
-				
+
 				t, err := decodeTask(msgs[0].Values)
 				if err == nil {
 					ongoingTasks = append(ongoingTasks, map[string]any{
@@ -629,4 +633,3 @@ func (h *Handlers) DeleteDLQ(w http.ResponseWriter, r *http.Request) {
 
 	h.writeError(w, http.StatusNotFound, "task not found in DLQ", nil)
 }
-

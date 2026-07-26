@@ -40,6 +40,7 @@ export interface TaskBrief {
   status: string;
   created_at: string; // ISO 8601
   error_msg: string;
+  source?: string;
 }
 
 // ── Full Task model (GET /api/task/{id}, GET /api/completed) ────────────────
@@ -48,6 +49,7 @@ export interface Task {
   ID: string;
   Name?: string;
   Type: string;
+  Source?: string;
   Payload: unknown;
   Priority: number;
   Status: TaskStatus;
@@ -113,6 +115,7 @@ export interface SubmitTaskRequest {
   max_retries?: number;
   eta?: string;
   cron_expr?: string;
+  source?: string;
 }
 
 export interface SubmitTaskResponse {
@@ -150,4 +153,7 @@ export type Section =
   | 'scheduled'
   | 'cron'
   | 'submit'
-  | 'lookup';
+  | 'lookup'
+  | 'sdk';
+  
+  

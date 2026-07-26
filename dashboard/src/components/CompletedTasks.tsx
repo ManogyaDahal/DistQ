@@ -62,6 +62,7 @@ export default function CompletedTasks() {
             <thead>
               <tr>
                 <th style={thStyle}>Task ID</th>
+                <th style={thStyle}>Source</th>
                 <th style={thStyle}>Type</th>
                 <th style={thStyle}>Priority</th>
                 <th style={thStyle}>Created</th>
@@ -142,6 +143,9 @@ function TaskRow({
               task.ID
             )}
           </span>
+        </td>
+        <td style={tdStyle}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{task.Source ?? '-'}</span>
         </td>
         <td style={tdStyle}>
           <span style={badgeStyle}>{task.Type}</span>
