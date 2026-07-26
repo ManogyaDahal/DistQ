@@ -10,5 +10,53 @@ services:
     volumes:
       - redis-data:/data
 
+  broker:
+    build:
+      context: .
+      args:
+        COMPONENT_PATH: cmd/broker
+    container_name: distq-broker
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      args:
+        COMPONENT_PATH: cmd/worker
+    container_name: distq-worker
+    environment:
+      - REDIS_ADDR=redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+
+  api:
+    build:
+      context: .
+      args:
+        COMPONENT_PATH: cmd/api
+    container_name: distq-api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+
+
+  dashboard:
+    build:
+      context: dashboard
+      dockerfile: Dockerfile
+    container_name: distq-dashboard
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
 volumes:
   redis-data:

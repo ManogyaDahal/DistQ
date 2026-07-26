@@ -1,6 +1,12 @@
 package config
 
-import "time"
+import (
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
+)
 
 // Config holds all runtime configuration loaded from environment variables.
 // Loading and validation are implemented elsewhere in this package.
@@ -17,11 +23,24 @@ type Config struct {
 	MemoryDetailsPath string        // MEMORY_DETAILS_PATH, default "dummy_memory_details.json"
 }
 
+func getEnvOrFallback(envValue string, defaultVal string) string {
+	value := os.Getenv(envValue)
+	if value != "" {
+		return value
+	}
+	return defaultVal
+}
+
 // returns the default configuration of the task queue
 func Load() (*Config, error) {
+	// loading env var
+	_ = godotenv.Load()
+	WorkerConcurrency, _ := strconv.Atoi(getEnvOrFallback("WORKER_CONCURRENCY", "4"))
+
 	return &Config{
-		RedisAddr:         "localhost:6379",
-		RedisPassword:     "",
+		RedisAddr:         getEnvOrFallback("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:     getEnvOrFallback("REDIS_PASSWORD", ""),
+		WorkerConcurrency: WorkerConcurrency,
 		HeartbeatInterval: 5 * time.Second,
 		HeartbeatTimeout:  30 * time.Second,
 		PriorityLevels:    []int{10, 5, 1},

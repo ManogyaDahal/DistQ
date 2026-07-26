@@ -1,10 +1,30 @@
-# This Dockerfile contains the image of redis.
-# TODO: This will probably contain the binaries of each component of the project
-FROM redis:7.2-alpine
+# Build stage for Go binaries
+FROM golang:alpine AS builder
 
-LABEL org.opencontainers.image.title="distq-redis"
-LABEL org.opencontainers.image.description="Redis container for DistQ development"
+WORKDIR /build
 
-EXPOSE 6379
+# Copy the go.mod and go.sum first to leverage Docker cache
+COPY go.mod go.sum ./
+RUN go mod download
 
-CMD ["redis-server", "--appendonly", "yes"]
+# Copy the entire project
+COPY . .
+
+# Provide a build argument to determine which component to build 
+# e.g., cmd/api, cmd/broker, cmd/worker, test_app
+ARG COMPONENT_PATH=cmd/api
+
+# Build the specific component
+RUN cd ${COMPONENT_PATH} && go build -o /build/bin/app .
+
+# Final stage
+FROM alpine:latest
+
+WORKDIR /app
+# Copy the built binary
+COPY --from=builder /build/bin/app /app/app
+
+# Expose ports that might be used (API uses 8080)
+EXPOSE 8080
+
+ENTRYPOINT ["/app/app"]
