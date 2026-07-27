@@ -17,11 +17,19 @@ export interface Metrics {
   cron_count: number;
 }
 
+export interface WorkerSlotStatus {
+  id: string;
+  status: 'idle' | 'busy';
+}
+
 export interface WorkerStatus {
   id: string;
   status: 'active' | 'stale';
   last_seen: number; // unix epoch seconds
   ongoing_tasks: number;
+  /** goroutine concurrency the worker was started with (0 = legacy/unknown) */
+  total_slots: number;
+  workers?: WorkerSlotStatus[];
 }
 
 export interface TaskBrief {
